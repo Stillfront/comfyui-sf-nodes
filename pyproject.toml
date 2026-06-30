@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-sf-nodes"
 description = "Custom nodes for ComfyUI including LLM Chat with support for Claude, Gemini, and OpenAI models, WaveSpeed AI image/video generation, VertexAI integration, and workflow utilities"
-version = "1.0.1"
+version = "1.0.2"
 license = { file = "LICENSE" }
 dependencies = [
     "requests>=2.31.0",
