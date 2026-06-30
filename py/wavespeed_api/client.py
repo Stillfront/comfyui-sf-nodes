@@ -51,7 +51,7 @@ class WaveSpeedClient:
                 error_data = response.json()
                 if "message" in error_data:
                     error_message = f"Error: {error_data['message']}"
-            except:
+            except Exception:
                 pass
             raise Exception(error_message)
 
@@ -85,7 +85,7 @@ class WaveSpeedClient:
                 error_data = response.json()
                 if "error" in error_data:
                     error_message = f"Error: {error_data['error']}"
-            except:
+            except Exception:
                 pass
             raise Exception(error_message)
 

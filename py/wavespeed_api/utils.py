@@ -26,7 +26,14 @@ def imageurl2tensor(image_urls: List[str]):
 
 
 def fetch_image(url, stream=True):
-    return requests.get(url, stream=stream).content
+    parsed = requests.utils.urlparse(url)
+    if parsed.scheme not in ("https", "http"):
+        raise ValueError(f"Blocked URL with disallowed scheme: {parsed.scheme}")
+    hostname = parsed.hostname or ""
+    blocked_prefixes = ("localhost", "127.", "0.", "10.", "169.254.", "192.168.", "172.")
+    if any(hostname == h or hostname.startswith(h) for h in blocked_prefixes):
+        raise ValueError(f"Blocked request to private/internal address: {hostname}")
+    return requests.get(url, stream=stream, timeout=30).content
 
 
 def save_video(video: VideoInput, save_path: str):
@@ -164,7 +171,7 @@ def image_to_base64s(tensor):
 
 def check_lora_path(path):
     """Checks if the LoRA path is valid."""
-    if path.startswith('http://') or path.startswith('https://'):
+    if path.startswith('https://'):
         return path
     elif '/' in path and not path.startswith('/'):
         # Ensure format is 'username/model-name'

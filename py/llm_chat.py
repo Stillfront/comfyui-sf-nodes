@@ -146,8 +146,8 @@ def call_claude_api(
             error_data = response.json()
             if error_data.get("error"):
                 error_msg = error_data["error"].get("message", error_msg)
-        except:
-            error_msg = f"{error_msg}: {response.text}"
+        except Exception:
+            pass
         raise Exception(error_msg)
 
     response_data = response.json()
@@ -237,8 +237,8 @@ def call_gemini_api(
             error_data = response.json()
             if error_data.get("error"):
                 error_msg = error_data["error"].get("message", error_msg)
-        except:
-            error_msg = f"{error_msg}: {response.text}"
+        except Exception:
+            pass
         raise Exception(error_msg)
 
     response_data = response.json()
