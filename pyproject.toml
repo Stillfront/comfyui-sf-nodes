@@ -17,6 +17,6 @@ dependencies = [
 Repository = "https://github.com/Stillfront/comfyui-sf-nodes"
 
 [tool.comfy]
-PublisherId = "stillfront"
+PublisherId = "sf"
 DisplayName = "SF ComfyUI Nodes"
 Icon = ""
