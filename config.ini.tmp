@@ -1,0 +1,4 @@
+[API]
+# Add your WaveSpeed AI API key here
+# You can obtain your API key from https://wavespeed.ai
+api_key = YOUR_API_KEY_HERE

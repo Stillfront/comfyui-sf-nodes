@@ -1,0 +1,22 @@
+[project]
+name = "comfyui-sf-nodes"
+description = "Custom nodes for ComfyUI including LLM Chat with support for Claude, Gemini, and OpenAI models, WaveSpeed AI image/video generation, VertexAI integration, and workflow utilities"
+version = "1.0.0"
+license = { file = "LICENSE" }
+dependencies = [
+    "requests>=2.31.0",
+    "pillow>=10.0.0",
+    "numpy<2.0.0",
+    "torch",
+    "pydantic>=2.0.0",
+    "google-genai>=1.0.0",
+    "google-cloud-storage>=2.0.0"
+]
+
+[project.urls]
+Repository = "https://github.com/Stillfront/comfyui-sf-nodes"
+
+[tool.comfy]
+PublisherId = "stillfront"
+DisplayName = "SF ComfyUI Nodes"
+Icon = ""
