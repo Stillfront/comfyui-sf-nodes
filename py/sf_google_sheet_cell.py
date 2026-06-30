@@ -4,10 +4,21 @@ import re
 import requests
 
 
+def col_letter_to_index(col_str: str) -> int:
+    """Convert a column letter (A, B, C, ... Z, AA, AB, ...) to a 0-based index."""
+    col_str = col_str.strip().upper()
+    if not col_str or not col_str.isalpha():
+        raise ValueError(f"Invalid column label '{col_str}'. Use letters like A, B, C, AA, AB, etc.")
+    result = 0
+    for char in col_str:
+        result = result * 26 + (ord(char) - ord("A") + 1)
+    return result - 1
+
+
 class SFGoogleSheetCell:
     """
     Reads a single cell from a publicly shared Google Sheet.
-    Row and column are 1-indexed to match Google Sheets display numbers.
+    Row is 1-indexed. Column uses letter notation (A, B, C, ...) matching Google Sheets.
     The sheet must be shared as "Anyone with the link can view."
     """
 
@@ -47,12 +58,10 @@ class SFGoogleSheetCell:
                     },
                 ),
                 "col": (
-                    "INT",
+                    "STRING",
                     {
-                        "default": 1,
-                        "min": 1,
-                        "step": 1,
-                        "tooltip": "Column number starting from 1 (A=1, B=2, C=3, etc.).",
+                        "default": "A",
+                        "tooltip": "Column letter as shown in Google Sheets (A, B, C, ... Z, AA, AB, ...).",
                     },
                 ),
             }
@@ -63,11 +72,11 @@ class SFGoogleSheetCell:
     FUNCTION = "get_cell"
     CATEGORY = "Stillfront/Utils"
 
-    def get_cell(self, url: str, sheet_gid: str, row: int, col: int) -> tuple:
+    def get_cell(self, url: str, sheet_gid: str, row: int, col: str) -> tuple:
         spreadsheet_id = self._extract_id(url)
         gid = sheet_gid.strip() or "0"
+        col_idx = col_letter_to_index(col)
 
-        # gviz/tq endpoint correctly handles any sheet GID, unlike export?format=csv
         csv_url = (
             f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}"
             f"/gviz/tq?tqx=out:csv&gid={gid}"
@@ -87,19 +96,15 @@ class SFGoogleSheetCell:
         content = response.content.decode("utf-8")
         table = list(csv.reader(io.StringIO(content)))
 
-        # Convert 1-indexed user input to 0-indexed Python list access
         row_idx = row - 1
-        col_idx = col - 1
 
         if row_idx >= len(table):
-            raise ValueError(
-                f"Row {row} is out of range — the sheet has {len(table)} rows."
-            )
+            raise ValueError(f"Row {row} is out of range — the sheet has {len(table)} rows.")
 
         row_data = table[row_idx]
         if col_idx >= len(row_data):
             raise ValueError(
-                f"Column {col} is out of range — row {row} has {len(row_data)} columns."
+                f"Column '{col.upper()}' is out of range — row {row} has {len(row_data)} columns."
             )
 
         return (str(row_data[col_idx]),)

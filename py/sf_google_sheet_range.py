@@ -3,13 +3,15 @@ import io
 import re
 import requests
 
+from .sf_google_sheet_cell import col_letter_to_index
+
 
 class SFGoogleSheetRange:
     """
     Reads a range of cells from a publicly shared Google Sheet and joins them
     into a single string using a configurable delimiter.
     Cells are read left to right, top to bottom.
-    Row and column numbers are 1-indexed to match Google Sheets display numbers.
+    Row numbers are 1-indexed. Columns use letter notation (A, B, C, ...) matching Google Sheets.
     The sheet must be shared as "Anyone with the link can view."
     """
 
@@ -48,12 +50,10 @@ class SFGoogleSheetRange:
                     },
                 ),
                 "start_col": (
-                    "INT",
+                    "STRING",
                     {
-                        "default": 1,
-                        "min": 1,
-                        "step": 1,
-                        "tooltip": "First column of the range (1 = column A).",
+                        "default": "A",
+                        "tooltip": "First column of the range (e.g. A, B, C, AA, ...).",
                     },
                 ),
                 "end_row": (
@@ -66,12 +66,10 @@ class SFGoogleSheetRange:
                     },
                 ),
                 "end_col": (
-                    "INT",
+                    "STRING",
                     {
-                        "default": 1,
-                        "min": 1,
-                        "step": 1,
-                        "tooltip": "Last column of the range (inclusive).",
+                        "default": "A",
+                        "tooltip": "Last column of the range (inclusive, e.g. A, B, C, AA, ...).",
                     },
                 ),
                 "delimiter": (
@@ -98,15 +96,20 @@ class SFGoogleSheetRange:
         url: str,
         sheet_gid: str,
         start_row: int,
-        start_col: int,
+        start_col: str,
         end_row: int,
-        end_col: int,
+        end_col: str,
         delimiter: str,
     ) -> tuple:
+        start_col_idx = col_letter_to_index(start_col)
+        end_col_idx = col_letter_to_index(end_col)
+
         if start_row > end_row:
-            raise ValueError(f"start_row ({start_row}) must be less than or equal to end_row ({end_row}).")
-        if start_col > end_col:
-            raise ValueError(f"start_col ({start_col}) must be less than or equal to end_col ({end_col}).")
+            raise ValueError(f"start_row ({start_row}) must be ≤ end_row ({end_row}).")
+        if start_col_idx > end_col_idx:
+            raise ValueError(
+                f"start_col '{start_col.upper()}' must be ≤ end_col '{end_col.upper()}'."
+            )
 
         table = self._fetch_sheet(url, sheet_gid)
 
@@ -115,7 +118,7 @@ class SFGoogleSheetRange:
             if r >= len(table):
                 break
             row_data = table[r]
-            for c in range(start_col - 1, end_col):
+            for c in range(start_col_idx, end_col_idx + 1):
                 value = row_data[c] if c < len(row_data) else ""
                 cells.append(str(value))
 
