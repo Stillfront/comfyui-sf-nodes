@@ -154,9 +154,31 @@ Utility nodes for building and enhancing workflows.
 | **SF Text Analyzer** | Analyze text content within a workflow. |
 | **SF Google Sheet Cell** | Read a single cell from a publicly shared Google Sheet. Specify the sheet tab by GID, row by number (1-indexed), and column by letter (A, B, C, ...). |
 | **SF Google Sheet Range** | Read a range of cells from a publicly shared Google Sheet and join them into a single string with a configurable delimiter. Supports multi-row, multi-column ranges. |
+| **SF Google Sheet Prompt Queue** | Run a batch of prompts straight from a Google Sheet. Reads prompts from one column, skips any row you've marked as finished in a second column, and sends the rest downstream — the graph runs once per prompt. |
 
 **Google Sheet nodes require the sheet to be shared as "Anyone with the link can view."**
 The sheet tab GID is found in the browser URL after `#gid=` when you have that tab open.
+
+#### Using SF Google Sheet Prompt Queue
+
+Set your sheet up with prompts in one column and an empty column beside it for tracking:
+
+| | A | B |
+|---|---|---|
+| **1** | Prompt | Status |
+| **2** | a red cat on a windowsill | done |
+| **3** | a blue dog in the snow | |
+| **4** | a green bird mid-flight | |
+
+With the defaults (`prompt_col` A, `status_col` B, `skip_first_row` on), a run sends rows 3 and 4
+and skips row 2. Each prompt triggers a separate pass through the downstream graph.
+
+- **`max_rows`** caps how many prompts go out per run — 10 by default.
+- **Marking is manual.** Type anything into the status column — `done`, `x`, `executed` — and that
+  row is skipped next time. Clear the cell and it gets queued again.
+- **Scanning stops at the first empty prompt cell**, so anything below a gap is ignored.
+- **Refresh sheet** re-reads the sheet after you've edited it in the browser and reports how many
+  prompts are still pending.
 
 ---
 

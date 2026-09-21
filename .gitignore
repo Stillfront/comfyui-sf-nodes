@@ -36,6 +36,9 @@ env/
 # Config with secrets
 config.ini
 
+# Publish artifact created by `comfy node publish`
+node.zip
+
 # OS
 .DS_Store
 Thumbs.db
