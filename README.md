@@ -177,8 +177,8 @@ and skips row 2. Each prompt triggers a separate pass through the downstream gra
 - **Marking is manual.** Type anything into the status column — `done`, `x`, `executed` — and that
   row is skipped next time. Clear the cell and it gets queued again.
 - **Scanning stops at the first empty prompt cell**, so anything below a gap is ignored.
-- **Refresh sheet** re-reads the sheet after you've edited it in the browser and reports how many
-  prompts are still pending.
+- **The sheet is re-read on every run**, so edits you make in the browser are picked up
+  automatically. Add rows or clear status cells and just hit Run again.
 
 ---
 
