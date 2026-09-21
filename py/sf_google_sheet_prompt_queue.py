@@ -157,7 +157,8 @@ all. Write `done` next to a prompt in the sheet and the next run skips it; clear
 the cell and it gets queued again. Scanning stops at the first empty prompt cell.
 
 The sheet is re-read fresh on every run, so edits you make in the browser are
-picked up automatically — there is nothing to refresh by hand.
+always picked up. **Refresh sheet** is optional — it reports how many prompts
+are pending without having to run the graph.
 """
 
     @classmethod
@@ -197,3 +198,30 @@ picked up automatically — there is nothing to refresh by hand.
 
 NODE_CLASS_MAPPINGS = {"SFGoogleSheetPromptQueue": SFGoogleSheetPromptQueue}
 NODE_DISPLAY_NAME_MAPPINGS = {"SFGoogleSheetPromptQueue": "SF Google Sheet Prompt Queue"}
+
+
+# --- Server route backing the node's Refresh button ---------------------------
+
+try:
+    from aiohttp import web
+    from server import PromptServer
+
+    @PromptServer.instance.routes.post("/sf_gsheet/preview")
+    async def _preview(request):
+        body = await request.json()
+        try:
+            rows = fetch_rows(body.get("url", ""), body.get("sheet_gid", "0"))
+            pending, total = scan_rows(
+                rows,
+                col_letter_to_index(body.get("prompt_col", "A")),
+                col_letter_to_index(body.get("status_col", "B")),
+                bool(body.get("skip_first_row", True)),
+            )
+            return web.json_response(
+                {"ok": True, "total": total, "pending": len(pending)}
+            )
+        except Exception as e:
+            return web.json_response({"ok": False, "error": str(e)})
+
+except ImportError:
+    pass
