@@ -59,6 +59,34 @@ Chat with large language models directly inside your ComfyUI workflows, with opt
 |---|---|
 | **SF LLM Chat** | Multi-model chat supporting Claude (Opus, Sonnet, Haiku), Gemini 3 (Pro, Flash), and OpenAI GPT-5 series. Supports image input and reports token usage. |
 | **SF Text Analyzer** | Analyze and process text strings within workflows. |
+| **SF Claude Code** | Send text and images to Claude through the Claude Code CLI on your own machine, using your existing Claude login instead of an API key. Image slots appear as you fill them. |
+
+#### Using SF Claude Code
+
+This node shells out to the **Claude Code CLI**, so it bills against your Claude
+subscription rather than an Anthropic API key.
+
+**Requirements:** [Claude Code](https://claude.com/claude-code) must be installed *and signed
+in* on the machine running ComfyUI. The node searches your `PATH` plus the usual install
+locations, and gives a clear error if it can't find it.
+
+| Input | Purpose |
+|---|---|
+| `prompt` | What you want Claude to do |
+| `system_prompt` | Shapes the reply, e.g. *"Reply with only the prompt text, no preamble."* Leave blank to skip |
+| `model` | `default`, `opus`, `sonnet`, or `haiku` |
+| `timeout_seconds` | Give up after this long (default 300) |
+| `seed` | Not sent to Claude — change it to force a fresh reply instead of ComfyUI's cached one |
+| `image_1…` | Connect an image and the next slot appears, up to 16 |
+
+Worth knowing before you build a big batch around it:
+
+- **Roughly 5–6 seconds per call minimum.** Claude Code is an agent that reads each image as a
+  tool call, so it's slower than a direct vision API request.
+- **Subscription rate limits apply.** Heavy batch use will hit them; `SF LLM Chat` with an API
+  key is the pay-per-token alternative that won't.
+- **Not portable.** Anyone else installing this pack needs their own Claude Code install and
+  login for this particular node. Every other node in the pack is unaffected.
 
 ---
 
