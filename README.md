@@ -60,6 +60,45 @@ Chat with large language models directly inside your ComfyUI workflows, with opt
 | **SF LLM Chat** | Multi-model chat supporting Claude (Opus, Sonnet, Haiku), Gemini 3 (Pro, Flash), and OpenAI GPT-5 series. Supports image input and reports token usage. |
 | **SF Text Analyzer** | Analyze and process text strings within workflows. |
 | **SF Claude Code** | Send text and images to Claude through the Claude Code CLI on your own machine, using your existing Claude login instead of an API key. Image slots appear as you fill them. |
+| **SF Claude Asset Director** | Point Claude at an asset library and it chooses which references suit the brief and writes the image prompt to go with them. Outputs an IMAGE batch plus the prompt, ready to wire into any generation node. |
+
+#### Using SF Claude Asset Director
+
+Give it a folder of assets and a brief; it returns the references Claude chose and the prompt
+it wrote for them. Wire `images` and `prompt` straight into Nano Banana, Seedream, or anything
+else that takes an image batch and a text prompt.
+
+**It decides from a manifest, not from the pixels.** Put a file in the library — `assets.json`
+by default, though any text or JSON works — describing what each asset is:
+
+```json
+{"assets": [
+  {"file": "knight.png", "desc": "Armoured knight character, heroic, front view"},
+  {"file": "castle.png", "desc": "Stone castle environment, background location"}
+]}
+```
+
+That keeps a large library cheap to work with: no image is opened unless you ask for it.
+
+| Input | Purpose |
+|---|---|
+| `library_path` | The asset folder. Point it at a Google Drive for Desktop sync folder to work off Drive |
+| `manifest` | Descriptions file inside the library (default `assets.json`); falls back to filenames if absent |
+| `system_prompt` | Standing rules — e.g. *"Choose only character assets unless a background is asked for"* |
+| `instruction` | The brief for this run. Type it or wire a string in |
+| `max_images` | Ceiling on how many references Claude may pick |
+| `pad_to_fit` | **On** (default): scale each image onto a shared canvas, keeping aspect ratios. **Off**: stretch them all to one size |
+| `look_at_images` | **Off** (default). On, Claude opens the files as well — better picks on an unlabelled library, but ~5s per image |
+| `seed` | Not sent to Claude; change it to force a fresh choice rather than ComfyUI's cached one |
+
+Outputs are `images` (batch), `prompt`, and `picked` (the filenames chosen, for checking its work).
+
+**Why `pad_to_fit` exists:** a ComfyUI image batch is one tensor, so every frame must share
+dimensions — and an asset library won't. Padding preserves aspect ratios at the cost of black
+bars; stretching avoids bars at the cost of distortion. Which is better depends on the model
+you're feeding.
+
+Requires [Claude Code](https://claude.com/claude-code) installed and signed in, same as **SF Claude Code**.
 
 #### Using SF Claude Code
 
