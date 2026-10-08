@@ -62,6 +62,67 @@ Chat with large language models directly inside your ComfyUI workflows, with opt
 | **SF Claude Code** | Send text and images to Claude through the Claude Code CLI on your own machine, using your existing Claude login instead of an API key. Image slots appear as you fill them. |
 | **SF Claude Asset Director** | Point Claude at an asset library and it chooses which references suit the brief and writes the image prompt to go with them. Outputs an IMAGE batch plus the prompt, ready to wire into any generation node. |
 
+| **SF Claude Library Builder** | Point Claude at a folder of game assets and it writes a searchable manifest describing each one. Can also reorganise and rename the files. Feeds **SF Claude Asset Director**. |
+
+#### The asset library workflow
+
+These two nodes are a pair. **Library Builder** catalogues your assets once; **Asset Director**
+then searches that catalogue on every run without ever opening an image.
+
+```
+   one time, when assets change          every generation
+┌──────────────────────────────┐   ┌──────────────────────────────────┐
+│ SF Claude Library Builder    │   │ SF Claude Asset Director         │
+│ opens every image,           │──►│ searches the manifest,           │──► images + prompt
+│ writes manifest.json         │   │ opens nothing                    │
+└──────────────────────────────┘   └──────────────────────────────────┘
+```
+
+That split is the point: cataloguing is slow (~5s per asset) but happens rarely, while choosing
+is instant and happens constantly.
+
+**The manifest schema** (`sf-asset-library/1`):
+
+```json
+{
+  "schema": "sf-asset-library/1",
+  "project": "Fantasy RPG",
+  "art_style": "Hand-painted 2D, saturated palette, thick outlines, 3/4 view",
+  "generated": "2026-10-08",
+  "assets": [
+    {
+      "file": "characters/heroes/knight_aldric.png",
+      "name": "Aldric the Knight",
+      "category": "character",
+      "subcategory": "hero",
+      "archetype": "tank",
+      "tags": ["armoured", "sword", "front view", "heroic"],
+      "desc": "Armoured human knight in silver plate with a red tabard, standing front-on."
+    }
+  ]
+}
+```
+
+It's shaped for fast searching rather than for humans: one **flat list** (cheaper to scan than a
+tree), the **same keys on every entry**, faceted fields (`category` / `subcategory` /
+`archetype` / `tags`) to narrow by, and a one-sentence `desc` carrying the meaning. The
+top-level **`art_style`** matters more than it looks — Asset Director reads it and keeps every
+prompt it writes consistent with it, so a library generates in one coherent style.
+
+**Library Builder modes:**
+
+| Mode | What it touches |
+|---|---|
+| **manifest only** (default) | Nothing. Reads the images, returns the JSON as text |
+| **organise into a copy** | Writes a tidy, renamed copy to `output_path`; originals untouched |
+| **organise in place** | Renames and moves your actual files |
+
+`write_manifest` is **off** by default, so the first run shows you the JSON without writing
+anything. Turn it on once you're happy, or paste the text in yourself.
+
+Start in **manifest only**. Reorganising is genuinely useful on a folder of `IMG_0021.png` and
+`final_v2 copy.png`, but it moves real files — try it on a copy first.
+
 #### Using SF Claude Asset Director
 
 Give it a folder of assets and a brief; it returns the references Claude chose and the prompt

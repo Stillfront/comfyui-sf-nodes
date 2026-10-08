@@ -56,7 +56,9 @@ def build_request(system_prompt, instruction, files, manifest_text, max_images, 
 
     if manifest_text:
         parts.append(
-            "Here is the asset library manifest describing what each file contains:\n\n"
+            "Here is the asset library manifest describing what each file contains. "
+            "Search it to choose; if it declares an `art_style`, the prompt you write "
+            "must stay consistent with it.\n\n"
             f"{manifest_text.strip()}"
         )
 
@@ -171,10 +173,11 @@ class SFClaudeAssetDirector:
                 "manifest": (
                     "STRING",
                     {
-                        "default": "assets.json",
+                        "default": "manifest.json",
                         "tooltip": (
                             "File inside the library describing each asset, used to choose "
-                            "between them. Any text or JSON format. Ignored if absent."
+                            "between them. Written by SF Claude Library Builder, though any "
+                            "text or JSON works. Ignored if absent."
                         ),
                     },
                 ),
