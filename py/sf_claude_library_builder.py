@@ -89,19 +89,45 @@ def canonicalize(claude_path, expected):
     return cleaned
 
 
-def checkpoint_key(mode, manifest_name, system_prompt, project_notes, all_files):
-    """A fingerprint of this exact job, so a checkpoint only resumes a matching rerun."""
+def checkpoint_key(mode, manifest_name, system_prompt, project_notes):
+    """A fingerprint of this job's settings, so a checkpoint only resumes a
+    matching rerun.
+
+    Deliberately excludes the file list: adding or removing an asset should not
+    throw away a half-finished run, and entries are keyed by path anyway, so
+    stale ones are filtered out when the manifest is assembled.
+    """
     payload = json.dumps(
         {
             "mode": mode,
             "manifest_name": manifest_name,
             "system_prompt": system_prompt,
             "project_notes": project_notes,
-            "files": all_files,
         },
         sort_keys=True,
     )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+
+
+def load_existing_manifest(path):
+    """A previously written manifest, as (entries by file, project, art_style).
+
+    This is what makes a rerun incremental: anything already described here is
+    not sent to Claude again.
+    """
+    if not os.path.isfile(path):
+        return {}, None, None
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return {}, None, None
+
+    entries = {}
+    for entry in data.get("assets") or []:
+        if isinstance(entry, dict) and entry.get("file"):
+            entries[entry["file"]] = entry
+    return entries, data.get("project"), data.get("art_style")
 
 
 def load_checkpoint(root, key):
@@ -276,6 +302,18 @@ class SFClaudeLibraryBuilder:
                         ),
                     },
                 ),
+                "update_existing": (
+                    "BOOLEAN",
+                    {
+                        "default": True,
+                        "tooltip": (
+                            "On: reuse descriptions already in the manifest and only "
+                            "catalogue files that are new, so adding assets costs only "
+                            "those assets. Entries whose file has since been deleted are "
+                            "dropped. Off: describe every asset again from scratch."
+                        ),
+                    },
+                ),
                 "batch_size": (
                     "INT",
                     {
@@ -333,6 +371,10 @@ once, and tracks progress in a hidden checkpoint file. If a run fails partway,
 rerunning with the same settings resumes from where it stopped instead of
 re-paying for batches already done.
 
+With **update_existing** on (the default), rerunning against a library that
+already has a manifest only catalogues files that are new — so adding assets
+costs just those assets. Entries whose file has since been deleted are dropped.
+
 Defaults to **manifest only**, which touches nothing: you get the JSON as text to
 read and save yourself. Switch `write_manifest` on to have it saved into the
 library, or change `mode` to let Claude reorganise and rename the files too.
@@ -349,6 +391,7 @@ Budget about 5 seconds per asset — it opens every image.
         system_prompt,
         manifest_name,
         write_manifest,
+        update_existing,
         batch_size,
         model,
         timeout_seconds,
@@ -377,20 +420,50 @@ Budget about 5 seconds per asset — it opens every image.
         if not assets:
             raise ValueError(f"No image files found in {root}")
 
-        key = checkpoint_key(mode, manifest_name, system_prompt, project_notes, assets)
-        checkpoint = load_checkpoint(root, key)
+        manifest_root = out_dir if mode == MODE_COPY else root
+        manifest_path = os.path.join(manifest_root, manifest_name)
+
         done_by_file = {}
         project = art_style = None
+
+        # An existing manifest is the durable record of what is already described,
+        # so a rerun only pays for assets that are genuinely new. Skipped for the
+        # copy mode, where the manifest holds post-rename paths that cannot be
+        # matched against a scan of the untouched source folder.
+        reused = 0
+        if update_existing and mode != MODE_COPY:
+            existing, prev_project, prev_style = load_existing_manifest(manifest_path)
+            if existing:
+                done_by_file.update(existing)
+                project, art_style = prev_project, prev_style
+                reused = sum(1 for f in assets if f in existing)
+                gone = len(existing) - reused
+                print(
+                    f"[SF Claude Library Builder] Found {manifest_name}: reusing "
+                    f"{reused} existing description(s)"
+                    + (f", dropping {gone} for deleted file(s)" if gone else "")
+                    + "."
+                )
+
+        # A checkpoint from an interrupted run is newer than the manifest, so it wins.
+        key = checkpoint_key(mode, manifest_name, system_prompt, project_notes)
+        checkpoint = load_checkpoint(root, key)
         if checkpoint:
-            project = checkpoint.get("project")
-            art_style = checkpoint.get("art_style")
             for entry in checkpoint.get("done_assets", []):
                 if entry.get("file"):
                     done_by_file[entry["file"]] = entry
+            project = checkpoint.get("project") or project
+            art_style = checkpoint.get("art_style") or art_style
             print(
-                f"[SF Claude Library Builder] Resuming — {len(done_by_file)}/{len(assets)} "
-                f"asset(s) already catalogued from a previous run."
+                f"[SF Claude Library Builder] Resuming an interrupted run — "
+                f"{len(done_by_file)}/{len(assets)} asset(s) already catalogued."
             )
+
+        todo = sum(1 for f in assets if f not in done_by_file)
+        if todo == 0:
+            print("[SF Claude Library Builder] Nothing new to catalogue.")
+        else:
+            print(f"[SF Claude Library Builder] {todo} asset(s) to catalogue.")
 
         # Claude only ever reads images and replies with JSON; the node writes the
         # manifest itself, and the Write tool is never offered. Bash is needed
@@ -534,8 +607,6 @@ Budget about 5 seconds per asset — it opens every image.
         }
         manifest_text = json.dumps(manifest_data, indent=2)
 
-        manifest_root = out_dir if mode == MODE_COPY else root
-        manifest_path = os.path.join(manifest_root, manifest_name)
         if write_manifest:
             os.makedirs(manifest_root, exist_ok=True)
             with open(manifest_path, "w", encoding="utf-8") as f:
@@ -547,11 +618,13 @@ Budget about 5 seconds per asset — it opens every image.
         for entry in final_assets:
             counts[entry.get("category", "?")] = counts.get(entry.get("category", "?"), 0) + 1
 
+        newly_done = max(0, len(final_assets) - reused)
         report = "\n".join(
             [
                 f"mode:        {mode}",
                 f"scanned:     {len(assets)} file(s) in {root}",
-                f"catalogued:  {len(final_assets)} asset(s) across {len(batches)} batch(es)",
+                f"in manifest: {len(final_assets)} asset(s)",
+                f"reused:      {reused} already described, {newly_done} newly catalogued",
                 "categories:  " + (", ".join(f"{k} x{v}" for k, v in sorted(counts.items())) or "none"),
                 f"art style:   {manifest_data['art_style'] or '(not set)'}",
                 "manifest:    " + (manifest_path if write_manifest else "returned as text, not saved"),

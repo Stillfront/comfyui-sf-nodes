@@ -130,9 +130,18 @@ blow up in turns and cost on libraries of 100+ assets, with nothing produced at 
 batch now only reads its own assets and replies with JSON; the node assembles and writes the
 manifest itself, so no file-writing tool is ever handed to Claude for this.
 
-A hidden checkpoint (`.sf_library_builder_checkpoint.json`, removed automatically on success)
-tracks which assets are already catalogued. If a run fails or times out partway, rerunning with
-the same settings **resumes** — finished batches are skipped, not re-paid for.
+**Reruns are incremental.** With `update_existing` on (the default), the node reads the manifest
+already in the library and only catalogues files it doesn't yet describe. So the normal workflow
+is: drop new assets into the folder, run the same node against the same path, and only the new
+ones cost anything. Entries whose file has since been deleted are dropped automatically. Turn
+`update_existing` off to re-describe everything from scratch.
+
+*(Not available in `organise into a copy` mode, where the manifest holds post-rename paths that
+can't be matched against the untouched source folder.)*
+
+Separately, a hidden checkpoint (`.sf_library_builder_checkpoint.json`, removed automatically on
+success) covers a run that dies partway. Rerunning **resumes** — finished batches are skipped,
+not re-paid for.
 
 If a batch's reply comes back **cut off** — the model ran past its reply length limit partway
 through describing a wordy set of assets — that batch is automatically **retried as two smaller
