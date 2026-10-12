@@ -55,16 +55,25 @@ def chunk(items, size):
         yield items[i : i + size]
 
 
+class BatchParseError(RuntimeError):
+    """Claude's reply was not usable JSON.
+
+    Nearly always a reply that ran past its length limit and stopped partway,
+    which a smaller batch fixes — so the caller retries by splitting rather than
+    giving up.
+    """
+
+
 def extract_json(text):
     """The JSON object out of a reply that may be fenced or prefaced."""
     start, end = text.find("{"), text.rfind("}")
     if start == -1 or end <= start:
-        raise RuntimeError(f"Claude did not return JSON. It said: {text.strip()[:300]}")
+        raise BatchParseError("the reply stopped before any complete JSON object")
     body = text[start : end + 1]
     try:
         return json.loads(body)
     except json.JSONDecodeError as e:
-        raise RuntimeError(f"Claude's JSON could not be parsed ({e}): {body[:300]}")
+        raise BatchParseError(f"the reply was cut off or malformed ({e})")
 
 
 def canonicalize(claude_path, expected):
@@ -392,34 +401,33 @@ Budget about 5 seconds per asset — it opens every image.
         total_cost = 0.0
         started = time.time()
 
-        for batch_num, batch_files in enumerate(batches, start=1):
-            remaining = [f for f in batch_files if f not in done_by_file]
-            if not remaining:
-                continue  # fully covered by the checkpoint already
-
-            established = (project, art_style) if project and art_style else None
-            instruction = build_batch_instruction(
-                mode, remaining, len(assets), project_notes, established, out_dir
+        def fail(message):
+            """Stop the run, leaving finished batches safely checkpointed."""
+            save_checkpoint(root, key, project, art_style, list(done_by_file.values()))
+            raise RuntimeError(
+                f"{message} {len(done_by_file)}/{len(assets)} asset(s) are saved in a "
+                f"checkpoint — rerun with the same settings to resume rather than "
+                f"start over."
             )
 
-            command = [binary, "-p", instruction, "--output-format", "json", "--allowedTools", tools]
+        def run_batch(files, label):
+            """One Claude call. Returns (parsed reply, cost, turns)."""
+            established = (project, art_style) if project and art_style else None
+            command = [
+                binary,
+                "-p",
+                build_batch_instruction(
+                    mode, files, len(assets), project_notes, established, out_dir
+                ),
+                "--output-format",
+                "json",
+                "--allowedTools",
+                tools,
+            ]
             if system_prompt.strip():
                 command += ["--append-system-prompt", system_prompt.strip()]
             if model != "default":
                 command += ["--model", model]
-
-            print(
-                f"[SF Claude Library Builder] Batch {batch_num}/{len(batches)} "
-                f"({len(remaining)} asset(s))..."
-            )
-
-            def _fail(message):
-                save_checkpoint(root, key, project, art_style, list(done_by_file.values()))
-                raise RuntimeError(
-                    f"{message} {len(done_by_file)}/{len(assets)} asset(s) are saved in a "
-                    f"checkpoint — rerun with the same settings to resume rather than "
-                    f"start over."
-                )
 
             try:
                 completed = subprocess.run(
@@ -431,39 +439,55 @@ Budget about 5 seconds per asset — it opens every image.
                     stdin=subprocess.DEVNULL,
                 )
             except subprocess.TimeoutExpired:
-                _fail(
-                    f"Batch {batch_num}/{len(batches)} did not finish within "
-                    f"{timeout_seconds}s."
-                )
+                fail(f"Batch {label} did not finish within {timeout_seconds}s.")
 
             if completed.returncode != 0:
                 detail = (completed.stderr or completed.stdout or "").strip()[:500]
-                _fail(f"Batch {batch_num}/{len(batches)} failed (exit {completed.returncode}). {detail}")
+                fail(f"Batch {label} failed (exit {completed.returncode}). {detail}")
 
             try:
                 payload = json.loads(completed.stdout)
             except json.JSONDecodeError:
-                _fail(
-                    f"Batch {batch_num}/{len(batches)}: unreadable response: "
-                    f"{completed.stdout.strip()[:300]}"
-                )
+                fail(f"Batch {label}: unreadable response: {completed.stdout.strip()[:300]}")
 
             if payload.get("is_error"):
-                _fail(
-                    f"Batch {batch_num}/{len(batches)} reported an error: "
-                    f"{payload.get('result', 'unknown')}."
-                )
+                fail(f"Batch {label} reported an error: {payload.get('result', 'unknown')}.")
 
-            cost = payload.get("total_cost_usd") or 0.0
-            total_cost += cost
-            turns = payload.get("num_turns", "?")
-
+            # May raise BatchParseError, which catalogue() retries by splitting.
             data = extract_json(payload.get("result", ""))
+            return data, payload.get("total_cost_usd") or 0.0, payload.get("num_turns", "?")
+
+        def catalogue(files, label):
+            """Catalogue `files`, halving and retrying if the reply comes back cut off.
+
+            Each piece that succeeds is merged and checkpointed immediately, so a
+            later failure never costs work already paid for.
+            """
+            nonlocal project, art_style, total_cost
+
+            try:
+                data, cost, turns = run_batch(files, label)
+            except BatchParseError as exc:
+                if len(files) == 1:
+                    fail(
+                        f"Batch {label}: {exc}. This is a single asset "
+                        f"({files[0]}), so it cannot be split any further."
+                    )
+                half = len(files) // 2
+                print(
+                    f"[SF Claude Library Builder] Batch {label}: {exc}. "
+                    f"Retrying as two batches of {half} and {len(files) - half}."
+                )
+                catalogue(files[:half], f"{label}a")
+                catalogue(files[half:], f"{label}b")
+                return
+
+            total_cost += cost
             if project is None:
                 project = data.get("project", "Untitled project")
                 art_style = data.get("art_style", "")
 
-            expected = set(remaining)
+            expected = set(files)
             for entry in data.get("assets") or []:
                 raw = entry.get("file")
                 if not raw:
@@ -474,10 +498,28 @@ Budget about 5 seconds per asset — it opens every image.
             save_checkpoint(root, key, project, art_style, list(done_by_file.values()))
 
             print(
-                f"[SF Claude Library Builder] Batch {batch_num}/{len(batches)} done: "
-                f"{turns} turns, ${cost:.2f}. Running total: "
-                f"{len(done_by_file)}/{len(assets)} asset(s), ${total_cost:.2f}."
+                f"[SF Claude Library Builder] Batch {label} done: {turns} turns, "
+                f"${cost:.2f}. Running total: {len(done_by_file)}/{len(assets)} "
+                f"asset(s), ${total_cost:.2f}."
             )
+
+            skipped = [f for f in files if f not in done_by_file]
+            if skipped:
+                print(
+                    f"[SF Claude Library Builder] Batch {label}: {len(skipped)} file(s) "
+                    f"came back undescribed; a rerun will pick them up."
+                )
+
+        for batch_num, batch_files in enumerate(batches, start=1):
+            remaining = [f for f in batch_files if f not in done_by_file]
+            if not remaining:
+                continue  # fully covered by the checkpoint already
+
+            print(
+                f"[SF Claude Library Builder] Batch {batch_num}/{len(batches)} "
+                f"({len(remaining)} asset(s))..."
+            )
+            catalogue(remaining, f"{batch_num}/{len(batches)}")
 
         elapsed = time.time() - started
 

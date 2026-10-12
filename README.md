@@ -134,6 +134,11 @@ A hidden checkpoint (`.sf_library_builder_checkpoint.json`, removed automaticall
 tracks which assets are already catalogued. If a run fails or times out partway, rerunning with
 the same settings **resumes** — finished batches are skipped, not re-paid for.
 
+If a batch's reply comes back **cut off** — the model ran past its reply length limit partway
+through describing a wordy set of assets — that batch is automatically **retried as two smaller
+halves**, repeatedly if needed, rather than failing the run. You'll see it in the log as
+`Batch 7/7: the reply was cut off… Retrying as two batches of 5 and 6`.
+
 #### Using SF Claude Asset Director
 
 Give it a folder of assets and a brief; it returns the references Claude chose and the prompt
