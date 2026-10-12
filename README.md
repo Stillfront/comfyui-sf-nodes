@@ -2,7 +2,32 @@
 
 ![Stillfront](assets/logo.png)
 
-A collection of custom ComfyUI nodes developed by [Stillfront](https://www.stillfront.com). All nodes are prefixed with **SF** for easy searching in ComfyUI.
+**62 custom ComfyUI nodes** from [Stillfront](https://www.stillfront.com), covering AI image and
+video generation, LLM integration, and tooling for working with large game asset libraries. Every
+node is prefixed **SF** so they're easy to find in the node search.
+
+| | |
+|---|---|
+| [**Stillfront/WaveSpeed**](#stillfrontwavespeed) | 44 nodes — image and video generation through [WaveSpeed AI](https://wavespeed.ai): VEO 3.1, Sora 2, Nano Banana, Qwen, Flux Kontext, Seedream, WAN 2.5, InfiniteTalk, upscalers |
+| [**Stillfront/VertexAI**](#stillfrontvertexai) | 7 nodes — Imagen 3/4, VEO 3.1 and Nano Banana Pro via Google Cloud Vertex AI |
+| [**Stillfront/Utils**](#stillfrontutils) | 7 nodes — Google Sheets integration, prompt batching, resolution presets |
+| [**Stillfront/LLM**](#stillfrontllm) | 4 nodes — Claude, Gemini and GPT in your graph, plus the asset library tooling below |
+
+### Worth a look
+
+**[The asset library workflow](#the-asset-library-workflow)** — point Claude at a folder of game
+assets and it writes a searchable manifest describing every one. After that, any workflow can ask
+for *"the character art that suits a boss-fight poster"* and get back the right reference images
+**plus a generated prompt that already matches your project's art style** — without a single image
+being opened at generation time.
+
+Two nodes do this: **SF Claude Library Builder** catalogues once, **SF Claude Asset Director**
+searches on every run. Both run on your existing Claude Code login, so there's no API key and no
+per-token billing.
+
+**[SF Google Sheet Prompt Queue](#using-sf-google-sheet-prompt-queue)** — drive a batch of
+generations straight from a Google Sheet, marking rows done as you go and resuming where you left
+off.
 
 ---
 
@@ -61,7 +86,6 @@ Chat with large language models directly inside your ComfyUI workflows, with opt
 | **SF Text Analyzer** | Analyze and process text strings within workflows. |
 | **SF Claude Code** | Send text and images to Claude through the Claude Code CLI on your own machine, using your existing Claude login instead of an API key. Image slots appear as you fill them. |
 | **SF Claude Asset Director** | Point Claude at an asset library and it chooses which references suit the brief and writes the image prompt to go with them. Outputs an IMAGE batch plus the prompt, ready to wire into any generation node. |
-
 | **SF Claude Library Builder** | Point Claude at a folder of game assets and it writes a searchable manifest describing each one. Can also reorganise and rename the files. Feeds **SF Claude Asset Director**. |
 
 #### The asset library workflow
