@@ -123,6 +123,17 @@ anything. Turn it on once you're happy, or paste the text in yourself.
 Start in **manifest only**. Reorganising is genuinely useful on a folder of `IMG_0021.png` and
 `final_v2 copy.png`, but it moves real files — try it on a copy first.
 
+**Large libraries are processed in batches, not one session.** `batch_size` (default 15) caps
+how many assets Claude handles per call — asking it to hold a whole large library open, compose
+one giant manifest, and write the file all in a single uninterrupted session is what used to
+blow up in turns and cost on libraries of 100+ assets, with nothing produced at the end. Each
+batch now only reads its own assets and replies with JSON; the node assembles and writes the
+manifest itself, so no file-writing tool is ever handed to Claude for this.
+
+A hidden checkpoint (`.sf_library_builder_checkpoint.json`, removed automatically on success)
+tracks which assets are already catalogued. If a run fails or times out partway, rerunning with
+the same settings **resumes** — finished batches are skipped, not re-paid for.
+
 #### Using SF Claude Asset Director
 
 Give it a folder of assets and a brief; it returns the references Claude chose and the prompt
