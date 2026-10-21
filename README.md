@@ -375,6 +375,25 @@ and skips row 2. Each prompt triggers a separate pass through the downstream gra
 
 ---
 
+## Interface improvements
+
+Not nodes — small fixes to ComfyUI's own interface that come with the pack.
+
+### Folder picker in the Save workflow dialog
+
+ComfyUI's **Save** / **Save As** dialog normally wants the whole path typed by hand —
+`Stillfront/NewMoon/My Workflow` — to save into a subfolder. With this pack installed, the dialog
+also shows your workflow folders as a tree: click a folder, type just the name, confirm.
+
+- **+ New folder** adds a folder at the selected level; it's created on disk when you save into it
+- The dialog opens on the folder of the workflow you're editing, already selected
+- Only the Save dialogs get the picker — Rename and Export, which reuse the same prompt, are left alone
+- ComfyUI still does the actual saving, so tab tracking and overwrite warnings behave exactly as before
+
+Turn it off under **Settings → Stillfront → Workflows**.
+
+---
+
 ## Requirements
 
 - Python 3.10+
