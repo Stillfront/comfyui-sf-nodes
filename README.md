@@ -2,13 +2,13 @@
 
 ![Stillfront](assets/logo.png)
 
-**62 custom ComfyUI nodes** from [Stillfront](https://www.stillfront.com), covering AI image and
+**63 custom ComfyUI nodes** from [Stillfront](https://www.stillfront.com), covering AI image and
 video generation, LLM integration, and tooling for working with large game asset libraries. Every
 node is prefixed **SF** so they're easy to find in the node search.
 
 | | |
 |---|---|
-| [**Stillfront/WaveSpeed**](#stillfrontwavespeed) | 44 nodes — image and video generation through [WaveSpeed AI](https://wavespeed.ai): VEO 3.1, Sora 2, Nano Banana, Qwen, Flux Kontext, Seedream, WAN 2.5, InfiniteTalk, upscalers |
+| [**Stillfront/WaveSpeed**](#stillfrontwavespeed) | 45 nodes — image, video and 3D generation through [WaveSpeed AI](https://wavespeed.ai): VEO 3.1, Sora 2, Nano Banana, Qwen, Flux Kontext, Seedream, WAN 2.5, InfiniteTalk, Tripo P2, upscalers |
 | [**Stillfront/VertexAI**](#stillfrontvertexai) | 7 nodes — Imagen 3/4, VEO 3.1 and Nano Banana Pro via Google Cloud Vertex AI |
 | [**Stillfront/Utils**](#stillfrontutils) | 7 nodes — Google Sheets integration, prompt batching, resolution presets |
 | [**Stillfront/LLM**](#stillfrontllm) | 4 nodes — Claude, Gemini and GPT in your graph, plus the asset library tooling below |
@@ -310,6 +310,20 @@ Connect an **SF WaveSpeed Client** node (enter your WaveSpeed API key) to any Wa
 | **SF WaveSpeed Flux Kontext Pro** | Flux Kontext Pro image generation. |
 | **SF WaveSpeed Flux Kontext Max** | Flux Kontext Max — highest quality variant. |
 | **SF WaveSpeed Flux ControlNet Union Pro 2** | Flux image generation with ControlNet guidance. |
+
+#### 3D Generation
+
+| Node | Description |
+|---|---|
+| **SF WaveSpeed Tripo P2 Image to 3D** | Tripo's P2 model — the same one behind ComfyUI's *Tripo P2: Image to Model* partner node — billed to your WaveSpeed account instead of ComfyUI credits. Quad or triangle topology, a target face count, texture quality from none to extreme, PBR, delighting, UVs, and seeds. |
+
+Outputs mirror the partner node, so they plug into **Preview 3D** and **Save 3D** directly: Tripo
+returns **FBX when `quad` is on and GLB when it's off**, so the matching output is populated and
+the other is empty. The file is also saved to `output/3d/`, with its path and CDN URL as strings.
+
+`face_limit` runs 48–50,000 for triangles or 48–25,000 for quads; `-1` lets Tripo decide. It's a
+target, not a hard cap. Leave `export_orientation` unset if the model is headed for rigging or
+retexturing — Tripo warns those steps can come out mis-rotated without reporting an error.
 
 #### Upscalers
 
