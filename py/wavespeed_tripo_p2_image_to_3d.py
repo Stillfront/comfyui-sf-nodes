@@ -187,7 +187,17 @@ class SFWaveSpeedTripoP2ImageTo3D:
                  model_seed=-1, texture_seed=-1, timeout_seconds=900):
         api = WaveSpeedClient(api_key=client["api_key"])
 
-        image_url = api.upload_file(tensor2images(image)[0])
+        try:
+            image_url = api.upload_file(tensor2images(image)[0])
+        except Exception as e:
+            if "401" in str(e):
+                source = client.get("source", "the SF WaveSpeed Client node")
+                raise RuntimeError(
+                    f"WaveSpeed rejected the API key, which came from {source}. "
+                    f"Check it on wavespeed.ai under API Keys, or clear the api_key field "
+                    f"on SF WaveSpeed Client to fall back to a key saved elsewhere."
+                ) from e
+            raise
         payload = build_payload(
             image_url, quad, face_limit, texture, pbr, texture_version, delight,
             auto_size, export_uv, export_orientation, model_seed, texture_seed,
