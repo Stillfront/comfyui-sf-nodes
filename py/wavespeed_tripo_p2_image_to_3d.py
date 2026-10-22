@@ -1,6 +1,7 @@
 # ABOUTME: Tripo P2 image-to-3D through the WaveSpeed API, billed to a WaveSpeed account
 # ABOUTME: Emits GLB/FBX File3D outputs compatible with ComfyUI's Preview 3D and Save nodes
 
+import asyncio
 import os
 import time
 from urllib.parse import urlparse
@@ -172,35 +173,39 @@ class SFWaveSpeedTripoP2ImageTo3D:
     CATEGORY = "Stillfront/WaveSpeed"
     OUTPUT_NODE = True
 
-    def generate(self, client, image, quad, face_limit, texture, pbr,
-                 texture_version=TEXTURE_VERSIONS[0], delight=True, auto_size=False,
-                 export_uv=True, export_orientation=ORIENTATION_UNSET,
-                 model_seed=-1, texture_seed=-1, timeout_seconds=900):
+    # async so ComfyUI can run several of these, and other async nodes, at once.
+    async def generate(self, client, image, quad, face_limit, texture, pbr,
+                       texture_version=TEXTURE_VERSIONS[0], delight=True, auto_size=False,
+                       export_uv=True, export_orientation=ORIENTATION_UNSET,
+                       model_seed=-1, texture_seed=-1, timeout_seconds=900):
         api = WaveSpeedClient(api_key=client["api_key"])
 
-        image_url = call(client, lambda: api.upload_file(tensor2images(image)[0]))
+        image_url = await call(client, api.upload_file, tensor2images(image)[0])
         payload = build_payload(
             image_url, quad, face_limit, texture, pbr, texture_version, delight,
             auto_size, export_uv, export_orientation, model_seed, texture_seed,
         )
 
-        task = call(client, lambda: api.post(ENDPOINT, payload))
+        task = await call(client, api.post, ENDPOINT, payload)
         task_id = task.get("id")
         if not task_id:
             raise RuntimeError(f"WaveSpeed did not return a task id: {task}")
         print(f"[SF Tripo P2] Submitted {task_id} (quad={quad}, faces={face_limit}, texture={texture}).")
 
         started = time.time()
-        result = wait_for_result(api, task_id, timeout_seconds, "Tripo P2", interval=3)
+        result = await wait_for_result(api, task_id, timeout_seconds, "Tripo P2", interval=3)
 
         url = pick_model_url(result.get("outputs"))
         ext = os.path.splitext(urlparse(url).path)[1].lower() or (".fbx" if quad else ".glb")
         path = os.path.join(output_dir(), f"sf_tripo_p2_{task_id}{ext}")
 
-        response = requests.get(url, timeout=300)
-        response.raise_for_status()
-        with open(path, "wb") as f:
-            f.write(response.content)
+        def download():
+            response = requests.get(url, timeout=300)
+            response.raise_for_status()
+            with open(path, "wb") as f:
+                f.write(response.content)
+
+        await asyncio.to_thread(download)
 
         print(f"[SF Tripo P2] Done in {time.time() - started:.0f}s -> {path}")
 

@@ -2,13 +2,13 @@
 
 ![Stillfront](assets/logo.png)
 
-**64 custom ComfyUI nodes** from [Stillfront](https://www.stillfront.com), covering AI image and
+**65 custom ComfyUI nodes** from [Stillfront](https://www.stillfront.com), covering AI image and
 video generation, LLM integration, and tooling for working with large game asset libraries. Every
 node is prefixed **SF** so they're easy to find in the node search.
 
 | | |
 |---|---|
-| [**Stillfront/WaveSpeed**](#stillfrontwavespeed) | 46 nodes — image, video and 3D generation through [WaveSpeed AI](https://wavespeed.ai): VEO 3.1, Sora 2, GPT Image 2.5, Nano Banana, Qwen, Flux Kontext, Seedream, WAN 2.5, InfiniteTalk, Tripo P2, upscalers |
+| [**Stillfront/WaveSpeed**](#stillfrontwavespeed) | 47 nodes — image, video and 3D generation through [WaveSpeed AI](https://wavespeed.ai): VEO 3.1, Sora 2, GPT Image 2.5, Nano Banana Pro, Qwen, Flux Kontext, Seedream, WAN 2.5, InfiniteTalk, Tripo P2, upscalers |
 | [**Stillfront/VertexAI**](#stillfrontvertexai) | 7 nodes — Imagen 3/4, VEO 3.1 and Nano Banana Pro via Google Cloud Vertex AI |
 | [**Stillfront/Utils**](#stillfrontutils) | 7 nodes — Google Sheets integration, prompt batching, resolution presets |
 | [**Stillfront/LLM**](#stillfrontllm) | 4 nodes — Claude, Gemini and GPT in your graph, plus the asset library tooling below |
@@ -288,6 +288,7 @@ Connect an **SF WaveSpeed Client** node (enter your WaveSpeed API key) to any Wa
 | Node | Description |
 |---|---|
 | **SF WaveSpeed GPT Image 2.5** | OpenAI's GPT Image models through WaveSpeed, built to match ComfyUI's *OpenAI GPT Image 2.5* partner node — see below. |
+| **SF WaveSpeed Nano Banana Pro** | Google's Nano Banana Pro and Nano Banana 2 through WaveSpeed, built to match ComfyUI's *Nano Banana Pro (Google Gemini Image)* partner node — see below. |
 | **SF WaveSpeed Nano Banana Text to Image** | Nano Banana text-to-image generation. |
 | **SF WaveSpeed Nano Banana Edit** | Edit images using the Nano Banana model. |
 | **SF WaveSpeed Nano Banana Pro Text to Image** | Nano Banana Pro text-to-image. |
@@ -311,6 +312,35 @@ Connect an **SF WaveSpeed Client** node (enter your WaveSpeed API key) to any Wa
 | **SF WaveSpeed Flux Kontext Pro** | Flux Kontext Pro image generation. |
 | **SF WaveSpeed Flux Kontext Max** | Flux Kontext Max — highest quality variant. |
 | **SF WaveSpeed Flux ControlNet Union Pro 2** | Flux image generation with ControlNet guidance. |
+
+#### These run in parallel
+
+**SF WaveSpeed GPT Image 2.5**, **SF WaveSpeed Nano Banana Pro** and **SF WaveSpeed Tripo P2
+Image to 3D** run concurrently, the way ComfyUI's partner nodes do. Put several of them side by
+side and press Run: they all submit and wait together, so the run takes about as long as the
+slowest one rather than the sum of all of them.
+
+They're asynchronous nodes, which ComfyUI starts as background tasks and keeps scheduling other
+work around — no change to ComfyUI is involved, so updates don't affect it. Only nodes that don't
+depend on each other overlap; WaveSpeed may also cap how many jobs one account runs at once.
+
+The older SF WaveSpeed nodes still run one at a time.
+
+#### Using SF WaveSpeed Nano Banana Pro
+
+Same controls as the partner node — prompt, the same two models, aspect ratio, resolution, and an
+optional `images` input that switches it to editing (batch up to 14 references with **Batch
+Images**). It bills your WaveSpeed key instead of ComfyUI credits.
+
+| Partner model | WaveSpeed model |
+|---|---|
+| `gemini-3-pro-image-preview` | `google/nano-banana-pro` |
+| `Nano Banana 2 (Gemini 3.1 Flash Image)` | `google/nano-banana-2` |
+
+What WaveSpeed's API doesn't offer, and so the node leaves out rather than fakes: the **text
+output** (the partner's second output, a written response from the model), **`response_modalities`**,
+the **system prompt**, and the **`files`** input. As on the partner node, `seed` isn't used by the
+model — change it to force a re-run.
 
 #### Using SF WaveSpeed GPT Image 2.5
 

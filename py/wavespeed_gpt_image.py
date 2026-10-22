@@ -1,18 +1,10 @@
 # ABOUTME: OpenAI GPT Image through WaveSpeed, modelled on ComfyUI's "OpenAI GPT Image 2.5" partner node
-# ABOUTME: Same model picker, per-model controls and growing image slots, billed to a WaveSpeed account
-
-import io
-
-import numpy as np
-import requests
-import torch
-from PIL import Image
+# ABOUTME: Same model picker, per-model controls and growing image slots; async, so it runs in parallel
 
 from comfy_api.latest import IO
 
 from .wavespeed_api.client import WaveSpeedClient
-from .wavespeed_api.utils import tensor2images
-from .wavespeed_api.v3 import call, wait_for_result
+from .wavespeed_api.v3 import fetch_images, flatten_images, submit_and_collect, to_image_batch, upload_images
 
 # Display name -> WaveSpeed slug. WaveSpeed does not offer gpt-image-1, so of
 # the partner node's five models this carries the four that exist there.
@@ -29,9 +21,6 @@ ASPECT_AUTO = "auto"
 ASPECT_RATIOS = (ASPECT_AUTO, "1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9",
                  "1:2", "2:1", "1:3", "3:1", "9:21", "21:9")
 LEGACY_SIZES = ("auto", "1024x1024", "1024x1536", "1536x1024")
-
-# The partner node downscales references to this many pixels before upload.
-MAX_UPLOAD_PIXELS = 2048 * 2048
 
 
 def _reference_images(max_images):
@@ -116,31 +105,6 @@ def build_payload(model_name, prompt, options, image_urls):
     return payload
 
 
-def _flatten(tensors):
-    """Every frame of every connected IMAGE input, as PIL images."""
-    frames = []
-    for tensor in tensors:
-        batch = tensor if tensor.dim() == 4 else tensor.unsqueeze(0)
-        frames.extend(tensor2images(batch))
-    return frames
-
-
-def _downscale(image):
-    w, h = image.size
-    if w * h <= MAX_UPLOAD_PIXELS:
-        return image
-    scale = (MAX_UPLOAD_PIXELS / (w * h)) ** 0.5
-    return image.resize((max(1, int(w * scale)), max(1, int(h * scale))), Image.LANCZOS)
-
-
-def _has_alpha(image):
-    return image.mode in ("RGBA", "LA") or (image.mode == "P" and "transparency" in image.info)
-
-
-def _to_tensor(image, mode):
-    return torch.from_numpy(np.asarray(image.convert(mode), dtype=np.float32) / 255.0)[None,]
-
-
 class SFWaveSpeedGPTImage(IO.ComfyNode):
     """GPT Image via WaveSpeed. Mirrors the partner node's interface; the
     differences come from what WaveSpeed's API actually accepts."""
@@ -199,57 +163,31 @@ class SFWaveSpeedGPTImage(IO.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, client, prompt, model, n, seed, timeout_seconds=600):
+    async def execute(cls, client, prompt, model, n, seed, timeout_seconds=600):
         if not prompt.strip():
-            raise ValueError("prompt is empty.")
+            raise ValueError("The prompt box is empty — GPT Image needs a text instruction, even when editing.")
 
         model_name = model["model"]
         if model_name not in MODELS:
             raise ValueError(f"Unknown model: {model_name}")
 
-        references = _flatten([t for t in (model.get("images") or {}).values() if t is not None])
+        references = flatten_images((model.get("images") or {}).values())
         limit = 10 if model_name == "gpt-image-1.5" else 16
         if len(references) > limit:
             raise ValueError(f"{model_name} accepts at most {limit} reference images, got {len(references)}.")
 
         api = WaveSpeedClient(api_key=client["api_key"])
-        image_urls = [call(client, lambda img=img: api.upload_file(_downscale(img))) for img in references]
+        image_urls = await upload_images(api, client, references)
 
         endpoint = f"/api/v3/{MODELS[model_name]}/{'edit' if image_urls else 'text-to-image'}"
         payload = build_payload(model_name, prompt, model, image_urls)
         mode = f"editing {len(image_urls)} image(s)" if image_urls else "text-to-image"
         print(f"[SF GPT Image] {model_name}, {mode}, n={n}.")
 
-        # WaveSpeed has no `n`, so submit n requests up front and collect them together.
-        task_ids = []
-        for _ in range(n):
-            task = call(client, lambda: api.post(endpoint, payload))
-            if not task.get("id"):
-                raise RuntimeError(f"WaveSpeed did not return a task id: {task}")
-            task_ids.append(task["id"])
-
-        frames = []
-        for task_id in task_ids:
-            result = wait_for_result(api, task_id, timeout_seconds, f"GPT Image ({model_name})")
-            outputs = result.get("outputs") or []
-            for url in outputs if isinstance(outputs, list) else [outputs]:
-                response = requests.get(url, timeout=120)
-                response.raise_for_status()
-                frames.append(Image.open(io.BytesIO(response.content)))
-
-        if not frames:
-            raise RuntimeError("WaveSpeed returned no images.")
-
-        # Keep alpha when a transparent background was produced, as the partner
-        # node does; otherwise return ordinary 3-channel images.
-        mode = "RGBA" if any(_has_alpha(f) for f in frames) else "RGB"
-
-        # A batch is one tensor, so frames must share a size; identical requests
-        # should agree, but match them to the first rather than fail if not.
-        width, height = frames[0].size
-        tensors = [_to_tensor(f if f.size == (width, height) else f.resize((width, height), Image.LANCZOS), mode)
-                   for f in frames]
-        return IO.NodeOutput(torch.cat(tensors, dim=0))
+        # WaveSpeed has no `n`, so n requests are submitted together.
+        urls = await submit_and_collect(api, client, endpoint, payload, n, timeout_seconds,
+                                        f"GPT Image ({model_name})")
+        return IO.NodeOutput(to_image_batch(await fetch_images(urls)))
 
 
 NODE_CLASS_MAPPINGS = {"SFWaveSpeedGPTImage": SFWaveSpeedGPTImage}
