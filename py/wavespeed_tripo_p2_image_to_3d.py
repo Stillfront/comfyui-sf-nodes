@@ -1,23 +1,8 @@
 # ABOUTME: Tripo P2 image-to-3D through the WaveSpeed API, billed to a WaveSpeed account
 # ABOUTME: Emits GLB/FBX File3D outputs compatible with ComfyUI's Preview 3D and Save nodes
 
-import asyncio
-import os
-import time
-from urllib.parse import urlparse
-
-import requests
-
 from .wavespeed_api.client import WaveSpeedClient
-from .wavespeed_api.utils import tensor2images
-from .wavespeed_api.v3 import call, wait_for_result
-
-try:
-    from comfy_api.latest import Types
-
-    File3D = Types.File3D
-except ImportError:  # older ComfyUI without 3D file types
-    File3D = None
+from .wavespeed_api.v3 import generate_3d_model
 
 ENDPOINT = "/api/v3/tripo3d/p2/image-to-3d"
 
@@ -66,28 +51,8 @@ def build_payload(image_url, quad, face_limit, texture, pbr, texture_version,
     return payload
 
 
-def pick_model_url(outputs):
-    """The model file URL out of a result's `outputs`, which may be a list or a string."""
-    candidates = outputs if isinstance(outputs, list) else [outputs]
-    urls = [u for u in candidates if isinstance(u, str) and u.startswith("http")]
-    for url in urls:
-        if urlparse(url).path.lower().endswith((".glb", ".fbx")):
-            return url
-    if urls:
-        return urls[0]
-    raise RuntimeError(f"No model URL in the result: {outputs!r}")
 
 
-def output_dir():
-    try:
-        import folder_paths
-
-        base = folder_paths.get_output_directory()
-    except ImportError:
-        base = os.getcwd()
-    path = os.path.join(base, "3d")
-    os.makedirs(path, exist_ok=True)
-    return path
 
 
 class SFWaveSpeedTripoP2ImageTo3D:
@@ -179,42 +144,15 @@ class SFWaveSpeedTripoP2ImageTo3D:
                        export_uv=True, export_orientation=ORIENTATION_UNSET,
                        model_seed=-1, texture_seed=-1, timeout_seconds=900):
         api = WaveSpeedClient(api_key=client["api_key"])
-
-        image_url = await call(client, api.upload_file, tensor2images(image)[0])
-        payload = build_payload(
-            image_url, quad, face_limit, texture, pbr, texture_version, delight,
-            auto_size, export_uv, export_orientation, model_seed, texture_seed,
+        print(f"[SF Tripo P2] quad={quad}, faces={face_limit}, texture={texture}.")
+        return await generate_3d_model(
+            api, client, image, ENDPOINT,
+            lambda image_url: build_payload(
+                image_url, quad, face_limit, texture, pbr, texture_version, delight,
+                auto_size, export_uv, export_orientation, model_seed, texture_seed,
+            ),
+            quad, "sf_tripo_p2", timeout_seconds, "Tripo P2",
         )
-
-        task = await call(client, api.post, ENDPOINT, payload)
-        task_id = task.get("id")
-        if not task_id:
-            raise RuntimeError(f"WaveSpeed did not return a task id: {task}")
-        print(f"[SF Tripo P2] Submitted {task_id} (quad={quad}, faces={face_limit}, texture={texture}).")
-
-        started = time.time()
-        result = await wait_for_result(api, task_id, timeout_seconds, "Tripo P2", interval=3)
-
-        url = pick_model_url(result.get("outputs"))
-        ext = os.path.splitext(urlparse(url).path)[1].lower() or (".fbx" if quad else ".glb")
-        path = os.path.join(output_dir(), f"sf_tripo_p2_{task_id}{ext}")
-
-        def download():
-            response = requests.get(url, timeout=300)
-            response.raise_for_status()
-            with open(path, "wb") as f:
-                f.write(response.content)
-
-        await asyncio.to_thread(download)
-
-        print(f"[SF Tripo P2] Done in {time.time() - started:.0f}s -> {path}")
-
-        glb = fbx = None
-        if File3D is not None:
-            model = File3D(path)
-            glb = model if ext == ".glb" else None
-            fbx = model if ext == ".fbx" else None
-        return (glb, fbx, path, url)
 
 
 NODE_CLASS_MAPPINGS = {"SFWaveSpeedTripoP2ImageTo3D": SFWaveSpeedTripoP2ImageTo3D}

@@ -2,13 +2,13 @@
 
 ![Stillfront](assets/logo.png)
 
-**65 custom ComfyUI nodes** from [Stillfront](https://www.stillfront.com), covering AI image and
+**66 custom ComfyUI nodes** from [Stillfront](https://www.stillfront.com), covering AI image and
 video generation, LLM integration, and tooling for working with large game asset libraries. Every
 node is prefixed **SF** so they're easy to find in the node search.
 
 | | |
 |---|---|
-| [**Stillfront/WaveSpeed**](#stillfrontwavespeed) | 47 nodes — image, video and 3D generation through [WaveSpeed AI](https://wavespeed.ai): VEO 3.1, Sora 2, GPT Image 2.5, Nano Banana Pro, Qwen, Flux Kontext, Seedream, WAN 2.5, InfiniteTalk, Tripo P2, upscalers |
+| [**Stillfront/WaveSpeed**](#stillfrontwavespeed) | 48 nodes — image, video and 3D generation through [WaveSpeed AI](https://wavespeed.ai): VEO 3.1, Sora 2, GPT Image 2.5, Nano Banana Pro, Qwen, Flux Kontext, Seedream, WAN 2.5, InfiniteTalk, Tripo P2 and H3.1, upscalers |
 | [**Stillfront/VertexAI**](#stillfrontvertexai) | 7 nodes — Imagen 3/4, VEO 3.1 and Nano Banana Pro via Google Cloud Vertex AI |
 | [**Stillfront/Utils**](#stillfrontutils) | 7 nodes — Google Sheets integration, prompt batching, resolution presets |
 | [**Stillfront/LLM**](#stillfrontllm) | 4 nodes — Claude, Gemini and GPT in your graph, plus the asset library tooling below |
@@ -315,8 +315,8 @@ Connect an **SF WaveSpeed Client** node (enter your WaveSpeed API key) to any Wa
 
 #### These run in parallel
 
-**SF WaveSpeed GPT Image 2.5**, **SF WaveSpeed Nano Banana Pro** and **SF WaveSpeed Tripo P2
-Image to 3D** run concurrently, the way ComfyUI's partner nodes do. Put several of them side by
+**SF WaveSpeed GPT Image 2.5**, **SF WaveSpeed Nano Banana Pro**, **SF WaveSpeed Tripo P2 Image
+to 3D** and **SF WaveSpeed Tripo H3.1 Image to 3D** run concurrently, the way ComfyUI's partner nodes do. Put several of them side by
 side and press Run: they all submit and wait together, so the run takes about as long as the
 slowest one rather than the sum of all of them.
 
@@ -369,10 +369,18 @@ Transparent backgrounds keep their alpha channel; opaque results are ordinary RG
 | Node | Description |
 |---|---|
 | **SF WaveSpeed Tripo P2 Image to 3D** | Tripo's P2 model — the same one behind ComfyUI's *Tripo P2: Image to Model* partner node — billed to your WaveSpeed account instead of ComfyUI credits. Quad or triangle topology, a target face count, texture quality from none to extreme, PBR, delighting, UVs, and seeds. |
+| **SF WaveSpeed Tripo H3.1 Image to 3D** | Tripo's high-detail H3.1 model — about a fifth of P2's price on WaveSpeed. Quad or triangle topology, 1,000–2,000,000 faces, standard or detailed geometry and textures, PBR, and seeds. Same outputs as the P2 node. |
 
 Outputs mirror the partner node, so they plug into **Preview 3D** and **Save 3D** directly: Tripo
 returns **FBX when `quad` is on and GLB when it's off**, so the matching output is populated and
 the other is empty. The file is also saved to `output/3d/`, with its path and CDN URL as strings.
+
+**P2 or H3.1?** They're two different Tripo families. **P2** is the low-poly line: it builds
+game-ready geometry at the face count you ask for, down to 48 faces, with clean quads — Tripo still
+labels it a *preview* release, so results can shift. **H3.1** is the high-detail model, up to
+2,000,000 faces, cheaper on WaveSpeed (≈$0.24 vs ≈$1.20 per model), but with a 1,000-face floor and
+a mesh reduced from a dense one rather than built low-poly. Put both nodes on the same image to
+compare — they run in parallel.
 
 `face_limit` runs 48–50,000 for triangles or 48–25,000 for quads; `-1` lets Tripo decide. It's a
 target, not a hard cap. Leave `export_orientation` unset if the model is headed for rigging or

@@ -3,6 +3,9 @@
 
 import asyncio
 import io
+import os
+import time
+from urllib.parse import urlparse
 
 import numpy as np
 import requests
@@ -10,6 +13,13 @@ import torch
 from PIL import Image
 
 from .utils import tensor2images
+
+try:
+    from comfy_api.latest import Types
+
+    File3D = Types.File3D
+except ImportError:  # older ComfyUI without 3D file types
+    File3D = None
 
 RESULT_PATH = "/api/v3/predictions/{id}/result"
 TERMINAL_FAILURES = {"failed", "cancelled", "timeout", "deleted"}
@@ -133,3 +143,72 @@ def to_image_batch(frames):
             frame = frame.resize((width, height), Image.LANCZOS)
         tensors.append(torch.from_numpy(np.asarray(frame.convert(mode), dtype=np.float32) / 255.0)[None,])
     return torch.cat(tensors, dim=0)
+
+
+# --- 3D models -----------------------------------------------------------------
+
+
+def pick_model_url(outputs):
+    """The model file URL out of a result's `outputs`, which may be a list or a string."""
+    candidates = outputs if isinstance(outputs, list) else [outputs]
+    urls = [u for u in candidates if isinstance(u, str) and u.startswith("http")]
+    for url in urls:
+        if urlparse(url).path.lower().endswith((".glb", ".fbx")):
+            return url
+    if urls:
+        return urls[0]
+    raise RuntimeError(f"No model URL in the result: {outputs!r}")
+
+
+def output_dir():
+    """ComfyUI's output/3d folder, created if missing."""
+    try:
+        import folder_paths
+
+        base = folder_paths.get_output_directory()
+    except ImportError:
+        base = os.getcwd()
+    path = os.path.join(base, "3d")
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
+async def generate_3d_model(api, client, image, endpoint, build_payload, quad, file_prefix,
+                            timeout_seconds, label):
+    """Image-to-3D from upload to File3D: uploads the first frame, submits the
+    job, waits for it, saves the model to output/3d and returns
+    (glb, fbx, path, url). `build_payload` receives the uploaded image URL.
+
+    Tripo returns FBX when quad topology is requested and GLB otherwise, so only
+    the output matching the returned file is populated, as on ComfyUI's own
+    Tripo nodes.
+    """
+    image_url = await call(client, api.upload_file, tensor2images(image)[0])
+    task = await call(client, api.post, endpoint, build_payload(image_url))
+    task_id = task.get("id")
+    if not task_id:
+        raise RuntimeError(f"WaveSpeed did not return a task id: {task}")
+    print(f"[SF {label}] Submitted {task_id}.")
+
+    started = time.time()
+    result = await wait_for_result(api, task_id, timeout_seconds, label, interval=3)
+
+    url = pick_model_url(result.get("outputs"))
+    ext = os.path.splitext(urlparse(url).path)[1].lower() or (".fbx" if quad else ".glb")
+    path = os.path.join(output_dir(), f"{file_prefix}_{task_id}{ext}")
+
+    def download():
+        response = requests.get(url, timeout=300)
+        response.raise_for_status()
+        with open(path, "wb") as f:
+            f.write(response.content)
+
+    await asyncio.to_thread(download)
+    print(f"[SF {label}] Done in {time.time() - started:.0f}s -> {path}")
+
+    glb = fbx = None
+    if File3D is not None:
+        model = File3D(path)
+        glb = model if ext == ".glb" else None
+        fbx = model if ext == ".fbx" else None
+    return (glb, fbx, path, url)
