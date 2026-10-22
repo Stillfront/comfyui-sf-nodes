@@ -9,6 +9,7 @@ import requests
 
 from .wavespeed_api.client import WaveSpeedClient
 from .wavespeed_api.utils import tensor2images
+from .wavespeed_api.v3 import call, wait_for_result
 
 try:
     from comfy_api.latest import Types
@@ -18,13 +19,11 @@ except ImportError:  # older ComfyUI without 3D file types
     File3D = None
 
 ENDPOINT = "/api/v3/tripo3d/p2/image-to-3d"
-RESULT_PATH = "/api/v3/predictions/{id}/result"
 
 TEXTURE_LEVELS = ["standard", "fast", "detailed", "extreme", "none"]
 TEXTURE_VERSIONS = ["v3.5-20260815", "v3.0-20250812", "v2.5-20250123"]
 ORIENTATION_UNSET = "unset (recommended)"
 ORIENTATIONS = [ORIENTATION_UNSET, "+x", "-x", "+y", "-y"]
-TERMINAL_FAILURES = {"failed", "cancelled", "timeout", "deleted"}
 
 
 def build_payload(image_url, quad, face_limit, texture, pbr, texture_version,
@@ -76,14 +75,6 @@ def pick_model_url(outputs):
     if urls:
         return urls[0]
     raise RuntimeError(f"No model URL in the result: {outputs!r}")
-
-
-def check_interrupted():
-    try:
-        import comfy.model_management as mm
-    except ImportError:
-        return
-    mm.throw_exception_if_processing_interrupted()
 
 
 def output_dir():
@@ -187,40 +178,20 @@ class SFWaveSpeedTripoP2ImageTo3D:
                  model_seed=-1, texture_seed=-1, timeout_seconds=900):
         api = WaveSpeedClient(api_key=client["api_key"])
 
-        try:
-            image_url = api.upload_file(tensor2images(image)[0])
-        except Exception as e:
-            if "401" in str(e):
-                source = client.get("source", "the SF WaveSpeed Client node")
-                raise RuntimeError(
-                    f"WaveSpeed rejected the API key, which came from {source}. "
-                    f"Check it on wavespeed.ai under API Keys, or clear the api_key field "
-                    f"on SF WaveSpeed Client to fall back to a key saved elsewhere."
-                ) from e
-            raise
+        image_url = call(client, lambda: api.upload_file(tensor2images(image)[0]))
         payload = build_payload(
             image_url, quad, face_limit, texture, pbr, texture_version, delight,
             auto_size, export_uv, export_orientation, model_seed, texture_seed,
         )
 
-        task = api.post(ENDPOINT, payload)
+        task = call(client, lambda: api.post(ENDPOINT, payload))
         task_id = task.get("id")
         if not task_id:
             raise RuntimeError(f"WaveSpeed did not return a task id: {task}")
         print(f"[SF Tripo P2] Submitted {task_id} (quad={quad}, faces={face_limit}, texture={texture}).")
 
         started = time.time()
-        while True:
-            check_interrupted()
-            result = api.get(RESULT_PATH.format(id=task_id))
-            status = result.get("status")
-            if status == "completed":
-                break
-            if status in TERMINAL_FAILURES:
-                raise RuntimeError(f"Tripo P2 task {status}: {result.get('error') or result}")
-            if time.time() - started > timeout_seconds:
-                raise RuntimeError(f"Tripo P2 task {task_id} still '{status}' after {timeout_seconds}s.")
-            time.sleep(3)
+        result = wait_for_result(api, task_id, timeout_seconds, "Tripo P2", interval=3)
 
         url = pick_model_url(result.get("outputs"))
         ext = os.path.splitext(urlparse(url).path)[1].lower() or (".fbx" if quad else ".glb")

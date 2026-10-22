@@ -2,13 +2,13 @@
 
 ![Stillfront](assets/logo.png)
 
-**63 custom ComfyUI nodes** from [Stillfront](https://www.stillfront.com), covering AI image and
+**64 custom ComfyUI nodes** from [Stillfront](https://www.stillfront.com), covering AI image and
 video generation, LLM integration, and tooling for working with large game asset libraries. Every
 node is prefixed **SF** so they're easy to find in the node search.
 
 | | |
 |---|---|
-| [**Stillfront/WaveSpeed**](#stillfrontwavespeed) | 45 nodes — image, video and 3D generation through [WaveSpeed AI](https://wavespeed.ai): VEO 3.1, Sora 2, Nano Banana, Qwen, Flux Kontext, Seedream, WAN 2.5, InfiniteTalk, Tripo P2, upscalers |
+| [**Stillfront/WaveSpeed**](#stillfrontwavespeed) | 46 nodes — image, video and 3D generation through [WaveSpeed AI](https://wavespeed.ai): VEO 3.1, Sora 2, GPT Image 2.5, Nano Banana, Qwen, Flux Kontext, Seedream, WAN 2.5, InfiniteTalk, Tripo P2, upscalers |
 | [**Stillfront/VertexAI**](#stillfrontvertexai) | 7 nodes — Imagen 3/4, VEO 3.1 and Nano Banana Pro via Google Cloud Vertex AI |
 | [**Stillfront/Utils**](#stillfrontutils) | 7 nodes — Google Sheets integration, prompt batching, resolution presets |
 | [**Stillfront/LLM**](#stillfrontllm) | 4 nodes — Claude, Gemini and GPT in your graph, plus the asset library tooling below |
@@ -287,6 +287,7 @@ Connect an **SF WaveSpeed Client** node (enter your WaveSpeed API key) to any Wa
 
 | Node | Description |
 |---|---|
+| **SF WaveSpeed GPT Image 2.5** | OpenAI's GPT Image models through WaveSpeed, built to match ComfyUI's *OpenAI GPT Image 2.5* partner node — see below. |
 | **SF WaveSpeed Nano Banana Text to Image** | Nano Banana text-to-image generation. |
 | **SF WaveSpeed Nano Banana Edit** | Edit images using the Nano Banana model. |
 | **SF WaveSpeed Nano Banana Pro Text to Image** | Nano Banana Pro text-to-image. |
@@ -310,6 +311,28 @@ Connect an **SF WaveSpeed Client** node (enter your WaveSpeed API key) to any Wa
 | **SF WaveSpeed Flux Kontext Pro** | Flux Kontext Pro image generation. |
 | **SF WaveSpeed Flux Kontext Max** | Flux Kontext Max — highest quality variant. |
 | **SF WaveSpeed Flux ControlNet Union Pro 2** | Flux image generation with ControlNet guidance. |
+
+#### Using SF WaveSpeed GPT Image 2.5
+
+Same interface as ComfyUI's partner node: pick a model and the controls below it change to what
+that model supports; connect reference images and it switches from generating to editing, with
+image slots appearing as you fill them. The difference is billing — it runs on your WaveSpeed key
+through **SF WaveSpeed Client** instead of ComfyUI credits.
+
+Where it differs from the partner node, it's because WaveSpeed's API differs:
+
+| | Partner node | This node |
+|---|---|---|
+| Models | 2.5 Flare, 2.5 Sunburst, 2, 1.5, 1 | Same minus **gpt-image-1**, which WaveSpeed doesn't offer |
+| Size (2 / 2.5) | Exact pixels, e.g. `1536x1024`, or Custom | **Aspect ratio** (15 options) + **resolution** `1k` / `2k` / `4k` |
+| Background | All models | gpt-image-1.5 only — the only one WaveSpeed accepts it for |
+| `n` (1–8) | One request | **n parallel requests**, returned as one batch; each billed separately |
+| Inpainting mask | Yes | **No** — WaveSpeed's edit endpoints have no mask input |
+| Reference images | Up to 16 | Up to 16; **10** for gpt-image-1.5 |
+| Extras | — | `output_format`; `input_fidelity` when editing with 1.5 |
+
+Like the partner node, `seed` isn't sent (the API has none) — change it to force a re-run.
+Transparent backgrounds keep their alpha channel; opaque results are ordinary RGB images.
 
 #### 3D Generation
 
