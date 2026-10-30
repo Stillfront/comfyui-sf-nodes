@@ -148,10 +148,14 @@ def to_image_batch(frames):
 # --- 3D models -----------------------------------------------------------------
 
 
-def pick_model_url(outputs):
-    """The model file URL out of a result's `outputs`, which may be a list or a string."""
+def pick_model_url(outputs, prefer=None):
+    """The model file URL out of a result's `outputs`, which may be a list or a string.
+    `prefer` (e.g. ".fbx") wins when a result carries several model files."""
     candidates = outputs if isinstance(outputs, list) else [outputs]
     urls = [u for u in candidates if isinstance(u, str) and u.startswith("http")]
+    for url in urls:
+        if prefer and urlparse(url).path.lower().endswith(prefer):
+            return url
     for url in urls:
         if urlparse(url).path.lower().endswith((".glb", ".fbx")):
             return url
@@ -173,6 +177,38 @@ def output_dir():
     return path
 
 
+async def submit_and_wait(api, client, endpoint, payload, timeout_seconds, label, interval=3):
+    """Submit one prediction and wait for it. Returns (task_id, result)."""
+    task = await call(client, api.post, endpoint, payload)
+    task_id = task.get("id")
+    if not task_id:
+        raise RuntimeError(f"WaveSpeed did not return a task id: {task}")
+    print(f"[SF {label}] Submitted {task_id}.")
+    return task_id, await wait_for_result(api, task_id, timeout_seconds, label, interval=interval)
+
+
+async def save_3d_model(url, name, default_ext=".glb"):
+    """Download a model into output/3d as `name` plus the URL's extension.
+    Returns (glb, fbx, path); the File3D goes in whichever slot matches the file."""
+    ext = os.path.splitext(urlparse(url).path)[1].lower() or default_ext
+    path = os.path.join(output_dir(), f"{name}{ext}")
+
+    def download():
+        response = requests.get(url, timeout=300)
+        response.raise_for_status()
+        with open(path, "wb") as f:
+            f.write(response.content)
+
+    await asyncio.to_thread(download)
+
+    glb = fbx = None
+    if File3D is not None:
+        model = File3D(path)
+        glb = model if ext == ".glb" else None
+        fbx = model if ext == ".fbx" else None
+    return glb, fbx, path
+
+
 async def generate_3d_model(api, client, image, endpoint, build_payload, quad, file_prefix,
                             timeout_seconds, label):
     """Image-to-3D from upload to File3D: uploads the first frame, submits the
@@ -184,31 +220,25 @@ async def generate_3d_model(api, client, image, endpoint, build_payload, quad, f
     Tripo nodes.
     """
     image_url = await call(client, api.upload_file, tensor2images(image)[0])
-    task = await call(client, api.post, endpoint, build_payload(image_url))
-    task_id = task.get("id")
-    if not task_id:
-        raise RuntimeError(f"WaveSpeed did not return a task id: {task}")
-    print(f"[SF {label}] Submitted {task_id}.")
-
     started = time.time()
-    result = await wait_for_result(api, task_id, timeout_seconds, label, interval=3)
+    task_id, result = await submit_and_wait(api, client, endpoint, build_payload(image_url), timeout_seconds, label)
 
     url = pick_model_url(result.get("outputs"))
-    ext = os.path.splitext(urlparse(url).path)[1].lower() or (".fbx" if quad else ".glb")
-    path = os.path.join(output_dir(), f"{file_prefix}_{task_id}{ext}")
-
-    def download():
-        response = requests.get(url, timeout=300)
-        response.raise_for_status()
-        with open(path, "wb") as f:
-            f.write(response.content)
-
-    await asyncio.to_thread(download)
+    glb, fbx, path = await save_3d_model(url, f"{file_prefix}_{task_id}", ".fbx" if quad else ".glb")
     print(f"[SF {label}] Done in {time.time() - started:.0f}s -> {path}")
-
-    glb = fbx = None
-    if File3D is not None:
-        model = File3D(path)
-        glb = model if ext == ".glb" else None
-        fbx = model if ext == ".fbx" else None
     return (glb, fbx, path, url)
+
+
+# --- Video ---------------------------------------------------------------------
+
+
+async def fetch_video(url, timeout=600):
+    """Download an output video into memory as a ComfyUI VIDEO."""
+    from comfy_api.latest import InputImpl
+
+    def get():
+        response = requests.get(url, timeout=timeout)
+        response.raise_for_status()
+        return io.BytesIO(response.content)
+
+    return InputImpl.VideoFromFile(await asyncio.to_thread(get))
