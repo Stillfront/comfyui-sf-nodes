@@ -201,5 +201,5 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "SFWaveSpeedNanoBananaProEditMulti": "SF WaveSpeed Nano Banana Pro Edit Multi"
+    "SFWaveSpeedNanoBananaProEditMulti": "SF WaveSpeed Nano Banana Pro Edit Multi (Legacy)"
 }

@@ -140,5 +140,5 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "SFWaveSpeedNanoBananaProTextToImageUltra": "SF WaveSpeed Nano Banana Pro Text to Image Ultra"
+    "SFWaveSpeedNanoBananaProTextToImageUltra": "SF WaveSpeed Nano Banana Pro Text to Image Ultra (Legacy)"
 }
