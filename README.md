@@ -11,7 +11,7 @@ node is prefixed **SF** so they're easy to find in the node search.
 | [**Stillfront/WaveSpeed**](#stillfrontwavespeed) | 52 nodes — image, video and 3D generation through [WaveSpeed AI](https://wavespeed.ai): VEO 3.1, Sora 2, Seedance 2.5, GPT Image 2.5, Nano Banana 2.1/Pro, Seedream 5.0, Qwen, Flux Kontext, WAN 2.5, InfiniteTalk, Tripo P2 and H3.1, Rodin 2.5, Meshy 7.1, upscalers |
 | [**Stillfront/VertexAI**](#stillfrontvertexai) | 7 nodes — Imagen 3/4, VEO 3.1 and Nano Banana Pro via Google Cloud Vertex AI |
 | [**Stillfront/Utils**](#stillfrontutils) | 7 nodes — Google Sheets integration, prompt batching, resolution presets |
-| [**Stillfront/LLM**](#stillfrontllm) | 4 nodes — Claude, Gemini and GPT in your graph, plus the asset library tooling below |
+| [**Stillfront/LLM**](#stillfrontllm) | 6 nodes — Claude, Gemini and GPT in your graph, plus the asset library tooling and a system-prompt coach below |
 
 ### Worth a look
 
@@ -87,6 +87,7 @@ Chat with large language models directly inside your ComfyUI workflows, with opt
 | **SF Claude Code** | Send text and images to Claude through the Claude Code CLI on your own machine, using your existing Claude login instead of an API key. Image slots appear as you fill them. |
 | **SF Claude Asset Director** | Point Claude at an asset library and it chooses which references suit the brief and writes the image prompt to go with them. Outputs an IMAGE batch plus the prompt, ready to wire into any generation node. |
 | **SF Claude Library Builder** | Point Claude at a folder of game assets and it writes a searchable manifest describing each one. Can also reorganise and rename the files. Feeds **SF Claude Asset Director**. |
+| **SF Claude Prompt Coach** | Improves the system prompt behind a prompt-writing node. Give it that system prompt, the prompt it wrote, the references and the result, plus your feedback, and it returns a revised system prompt. Remembers earlier rounds — see below. |
 
 #### The asset library workflow
 
@@ -209,6 +210,35 @@ bars; stretching avoids bars at the cost of distortion. Which is better depends 
 you're feeding.
 
 Requires [Claude Code](https://claude.com/claude-code) installed and signed in, same as **SF Claude Code**.
+
+#### Using SF Claude Prompt Coach
+
+For tuning the system prompt of a prompt-writing node such as **SF Claude Asset Director** or
+**SF Claude Code**. Each run is one round:
+
+1. Connect the **system prompt** you're tuning and the **generated prompt** it produced.
+2. Connect the **result** and the **references** to the `image_N` slots (a new slot appears as you
+   fill one) and say what each is in **image_notes** — `image 1: the result from Nano Banana`,
+   `image 2: style reference`. Claude refers to images by the same numbers, so you can too in
+   **feedback**: *"image 1 lost the thick outlines from image 2"*.
+3. Write your **feedback**. Claude treats it as the most important input.
+4. Run. **system_prompt** is the revised version; **analysis** says what Claude saw, the root
+   causes, and what it changed. Feed the revised prompt back into your prompt writer, generate
+   again, and run the coach again with the new result.
+
+**Memory.** Runs with the same **session_name** share one Claude Code session, so Claude remembers
+earlier rounds — what it changed, what you said, what got better or worse. Change the name to
+start fresh. Everything is also kept in `output/sf_prompt_coach/<session_name>/`: `log.md` (every
+round's inputs, analysis and revised prompt), `system_prompt_v1.md`, `v2`… and each round's images.
+The log never fades, unlike a long session, and Claude reads it when it needs older detail. To keep
+talking to it outside ComfyUI, run `claude --resume <session_id>` from that folder.
+
+**Nothing hidden.** The node's own instructions are the **coach_system_prompt** input (under
+*Show advanced inputs*), sent as Claude's whole system prompt; everything else Claude sees is the
+message built from your inputs, which is also written to the log. Edit the instructions freely, but
+keep the `<analysis>` / `<system_prompt>` reply format the node reads.
+
+Runs on your Claude Code login like **SF Claude Code**; `model` defaults to Opus.
 
 #### Using SF Claude Code
 
