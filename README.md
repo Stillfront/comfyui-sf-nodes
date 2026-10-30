@@ -8,7 +8,7 @@ node is prefixed **SF** so they're easy to find in the node search.
 
 | | |
 |---|---|
-| [**Stillfront/WaveSpeed**](#stillfrontwavespeed) | 48 nodes — image, video and 3D generation through [WaveSpeed AI](https://wavespeed.ai): VEO 3.1, Sora 2, GPT Image 2.5, Nano Banana Pro, Qwen, Flux Kontext, Seedream, WAN 2.5, InfiniteTalk, Tripo P2 and H3.1, upscalers |
+| [**Stillfront/WaveSpeed**](#stillfrontwavespeed) | 52 nodes — image, video and 3D generation through [WaveSpeed AI](https://wavespeed.ai): VEO 3.1, Sora 2, Seedance 2.5, GPT Image 2.5, Nano Banana 2.1/Pro, Seedream 5.0, Qwen, Flux Kontext, WAN 2.5, InfiniteTalk, Tripo P2 and H3.1, Rodin 2.5, Meshy 7.1, upscalers |
 | [**Stillfront/VertexAI**](#stillfrontvertexai) | 7 nodes — Imagen 3/4, VEO 3.1 and Nano Banana Pro via Google Cloud Vertex AI |
 | [**Stillfront/Utils**](#stillfrontutils) | 7 nodes — Google Sheets integration, prompt batching, resolution presets |
 | [**Stillfront/LLM**](#stillfrontllm) | 4 nodes — Claude, Gemini and GPT in your graph, plus the asset library tooling below |
@@ -262,10 +262,23 @@ Image and video generation nodes powered by the [WaveSpeed AI](https://wavespeed
 #### Setup
 Connect an **SF WaveSpeed Client** node (enter your WaveSpeed API key) to any WaveSpeed generation node.
 
+#### Cost badge
+
+The newer nodes show an estimated cost per run in dollars in their header, e.g. `~$0.04/run`,
+and update it as you change the settings — model, resolution, quality, duration, add-ons, the
+number of connected reference images and `n`. The prices come from WaveSpeed's model pages
+(`web/js/sf_wavespeed_pricing.js`); WaveSpeed notes those can lag, and the charge on the task is
+what you actually pay. A reference input carrying a batch counts as one image, so multi-image
+edits can be slightly underestimated.
+
+Nodes marked **(Legacy)** are older nodes kept so existing workflows still load; use the node
+named without it for new work.
+
 #### Video Generation
 
 | Node | Description |
 |---|---|
+| **SF WaveSpeed Seedance 2.5** | ByteDance Seedance 2.5 with native audio: text-to-video, or image-to-video from a start frame and optional end frame. 480p–4k, 4–30 s, billed per second. Outputs a `VIDEO` plus its URL. |
 | **SF WaveSpeed VEO 3.1 Text to Video** | Google VEO 3.1 text-to-video generation. |
 | **SF WaveSpeed VEO 3.1 Image to Video** | Google VEO 3.1 image-to-video animation. |
 | **SF WaveSpeed VEO 3.1 Reference to Video** | VEO 3.1 video generation using a reference image. |
@@ -288,15 +301,16 @@ Connect an **SF WaveSpeed Client** node (enter your WaveSpeed API key) to any Wa
 | Node | Description |
 |---|---|
 | **SF WaveSpeed GPT Image 2.5** | OpenAI's GPT Image models through WaveSpeed, built to match ComfyUI's *OpenAI GPT Image 2.5* partner node — see below. |
-| **SF WaveSpeed Nano Banana Pro** | Google's Nano Banana Pro and Nano Banana 2 through WaveSpeed, built to match ComfyUI's *Nano Banana Pro (Google Gemini Image)* partner node — see below. |
-| **SF WaveSpeed Nano Banana Text to Image** | Nano Banana text-to-image generation. |
-| **SF WaveSpeed Nano Banana Edit** | Edit images using the Nano Banana model. |
-| **SF WaveSpeed Nano Banana Pro Text to Image** | Nano Banana Pro text-to-image. |
-| **SF WaveSpeed Nano Banana Pro Text to Image Multi** | Nano Banana Pro with multiple inputs. |
-| **SF WaveSpeed Nano Banana Pro Text to Image Ultra** | Nano Banana Pro Ultra quality variant. |
-| **SF WaveSpeed Nano Banana Pro Edit** | Edit images with Nano Banana Pro. |
-| **SF WaveSpeed Nano Banana Pro Edit Multi** | Nano Banana Pro edit with multiple inputs. |
-| **SF WaveSpeed Nano Banana Pro Edit Ultra** | Nano Banana Pro edit Ultra quality variant. |
+| **SF WaveSpeed Nano Banana** | Google's Nano Banana 2.1, Nano Banana 2 and Nano Banana Pro through WaveSpeed, generate and edit in one node, built to match ComfyUI's *Nano Banana Pro (Google Gemini Image)* partner node — see below. |
+| **SF WaveSpeed Seedream 5.0** | ByteDance Seedream 5.0 Pro or Flash, generate and edit in one node. Up to 10 references, up to 2K. Flash is a flat $0.027 at any resolution. |
+| **SF WaveSpeed Nano Banana Text to Image (Legacy)** | Nano Banana text-to-image generation. |
+| **SF WaveSpeed Nano Banana Edit (Legacy)** | Edit images using the Nano Banana model. |
+| **SF WaveSpeed Nano Banana Pro Text to Image (Legacy)** | Nano Banana Pro text-to-image. |
+| **SF WaveSpeed Nano Banana Pro Text to Image Multi (Legacy)** | Nano Banana Pro with multiple inputs. |
+| **SF WaveSpeed Nano Banana Pro Text to Image Ultra (Legacy)** | Nano Banana Pro Ultra quality variant. |
+| **SF WaveSpeed Nano Banana Pro Edit (Legacy)** | Edit images with Nano Banana Pro. |
+| **SF WaveSpeed Nano Banana Pro Edit Multi (Legacy)** | Nano Banana Pro edit with multiple inputs. |
+| **SF WaveSpeed Nano Banana Pro Edit Ultra (Legacy)** | Nano Banana Pro edit Ultra quality variant. |
 | **SF WaveSpeed Qwen Text to Image** | Qwen text-to-image generation. |
 | **SF WaveSpeed Qwen Edit** | Edit images using Qwen. |
 | **SF WaveSpeed Qwen Edit Plus** | Qwen Edit with extended capabilities. |
@@ -315,8 +329,8 @@ Connect an **SF WaveSpeed Client** node (enter your WaveSpeed API key) to any Wa
 
 #### These run in parallel
 
-**SF WaveSpeed GPT Image 2.5**, **SF WaveSpeed Nano Banana Pro**, **SF WaveSpeed Tripo P2 Image
-to 3D** and **SF WaveSpeed Tripo H3.1 Image to 3D** run concurrently, the way ComfyUI's partner nodes do. Put several of them side by
+**SF WaveSpeed GPT Image 2.5**, **SF WaveSpeed Nano Banana**, **SF WaveSpeed Seedream 5.0**,
+**SF WaveSpeed Seedance 2.5**, and the Tripo P2, Tripo H3.1, Rodin 2.5 and Meshy 7.1 3D nodes run concurrently, the way ComfyUI's partner nodes do. Put several of them side by
 side and press Run: they all submit and wait together, so the run takes about as long as the
 slowest one rather than the sum of all of them.
 
@@ -326,16 +340,23 @@ depend on each other overlap; WaveSpeed may also cap how many jobs one account r
 
 The older SF WaveSpeed nodes still run one at a time.
 
-#### Using SF WaveSpeed Nano Banana Pro
+#### Using SF WaveSpeed Nano Banana
 
-Same controls as the partner node — prompt, the same two models, aspect ratio, resolution, and an
-optional `images` input that switches it to editing (batch up to 14 references with **Batch
-Images**). It bills your WaveSpeed key instead of ComfyUI credits.
+Same controls as the partner node — prompt, model, aspect ratio, resolution, and an optional
+`images` input that switches it to editing (batch up to 14 references with **Batch Images**) —
+plus Nano Banana 2.1 and a few WaveSpeed extras. It bills your WaveSpeed key instead of ComfyUI
+credits. (Its internal id is still `SFWaveSpeedNanoBananaPro`, so older workflows keep loading.)
 
-| Partner model | WaveSpeed model |
+| Model | WaveSpeed model |
 |---|---|
+| `Nano Banana 2.1` | `google/nano-banana-2.1` — the default: ranks above Pro on the public leaderboards at about a third of the price |
 | `gemini-3-pro-image-preview` | `google/nano-banana-pro` |
 | `Nano Banana 2 (Gemini 3.1 Flash Image)` | `google/nano-banana-2` |
+
+Extras: `n` sends several requests at once (replacing the old *Multi* nodes); **8K** on Pro runs
+on WaveSpeed's *ultra* endpoint (replacing the old *Ultra* nodes); the 1:4, 4:1, 1:8 and 8:1 aspect
+ratios work with 2.1 only; and **web / image search** (advanced inputs, paid add-ons) work with 2
+and 2.1. Combinations a model doesn't support stop with an error instead of being sent.
 
 What WaveSpeed's API doesn't offer, and so the node leaves out rather than fakes: the **text
 output** (the partner's second output, a written response from the model), **`response_modalities`**,
@@ -370,6 +391,8 @@ Transparent backgrounds keep their alpha channel; opaque results are ordinary RG
 |---|---|
 | **SF WaveSpeed Tripo P2 Image to 3D** | Tripo's P2 model — the same one behind ComfyUI's *Tripo P2: Image to Model* partner node — billed to your WaveSpeed account instead of ComfyUI credits. Quad or triangle topology, a target face count, texture quality from none to extreme, PBR, delighting, UVs, and seeds. |
 | **SF WaveSpeed Tripo H3.1 Image to 3D** | Tripo's high-detail H3.1 model — about a fifth of P2's price on WaveSpeed. Quad or triangle topology, 1,000–2,000,000 faces, standard or detailed geometry and textures, PBR, and seeds. Same outputs as the P2 node. |
+| **SF WaveSpeed Rodin 2.5 Image to 3D** | Hyper3D Rodin Gen-2.5 from 1–5 views. Quad budgets of 4K/8K/18K/50K faces or triangle budgets up to 500K, PBR or shaded materials, delighting, T/A-pose, and the HighPack add-on for 4K textures. Defaults to 18K quads in FBX. Same outputs as the Tripo nodes. |
+| **SF WaveSpeed Meshy 7.1 Image to 3D** | Meshy 7.1 with standard, low-poly or smart-topology meshes, quad or triangle, a 100–300,000 polygon target, PBR, an optional texture image or prompt — and humanoid auto-rigging, which also returns walk and run cycles, plus an optional animation preset. |
 
 Outputs mirror the partner node, so they plug into **Preview 3D** and **Save 3D** directly: Tripo
 returns **FBX when `quad` is on and GLB when it's off**, so the matching output is populated and
