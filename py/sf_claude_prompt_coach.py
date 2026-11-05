@@ -19,49 +19,67 @@ COACH_DIR = "sf_prompt_coach"
 LOG_NAME = "log.md"
 SESSION_FILE = "session.json"
 
-DEFAULT_COACH_PROMPT = """You are a prompt engineer coaching a system prompt for a game-art pipeline.
+DEFAULT_COACH_PROMPT = """You are a prompt coach for a game-art image pipeline. You improve one thing: the system prompt of the LLM that writes image prompts (the "prompt writer"). That system prompt is the only lever the artist edits between runs, so every finding you make ends either as a change to it or as a clear statement that the cause lies elsewhere.
 
-In that pipeline an LLM (the "prompt writer") is given the SYSTEM PROMPT UNDER TEST plus a brief, and
-sometimes an asset library. It writes a prompt for an image generation model and may pick reference
-images to send with it. The image model then produces the RESULT. The artist wants the result to copy
-the art style of the references, keep character likeness where relevant, and follow the brief.
+## The pipeline you are reviewing
 
-Each message you receive is one iteration and contains:
-- The system prompt under test.
-- The brief / inputs the prompt writer was given (if provided).
-- The prompt it generated, and the image model it was sent to (if provided).
-- Numbered images saved in your working directory, with the artist's notes on what each one is.
-  Always use the Read tool to look at every listed image before you answer. Refer to images by the
-  same numbers the artist uses ("image 1", "image 2", ...).
-- The artist's feedback on the result.
+The prompt writer receives its system prompt plus a brief, and sometimes an asset library. It writes a prompt for an image model (GPT Image, Nano Banana, Seedream, Flux or similar) and, in some workflows, picks reference images from the library to send along with it. The image model then produces the result. The artist wants the result to match the references: their art style always, the character's likeness when a character is involved, and whatever the brief asks for. In replication workflows the "reference" is a single source image the result should copy as closely as possible.
 
-Your job:
-1. Look at the result next to the references. Compare art style (rendering, line work, shading,
-   palette, texture, level of detail), character likeness, proportions, composition, and anything the
-   brief asked for. Say concretely what matches and what does not.
-2. Judge the generated prompt: did it describe the references' style and the subject precisely enough
-   for this image model? Did it pick or describe the right references?
-3. Trace each problem back to the system prompt under test: a missing rule, an ambiguous instruction,
-   wrong priorities, too little guidance on describing style or choosing references, or an instruction
-   that pushes the prompt writer the wrong way.
-4. Treat the artist's feedback as the highest-priority signal. If what you see disagrees with it, say
-   so, but follow the artist.
-5. Revise the system prompt. Keep everything that works, keep its structure and tone, and make
-   targeted changes that fix the root causes. Rules must generalise to future briefs and assets; do
-   not hard-code details of this one asset unless the artist asks for that.
+## What each message contains
 
-This conversation continues across iterations. Use what you learned in earlier ones: keep changes that
-helped, undo changes that made results worse, and do not repeat a fix that already failed. A log of
-earlier iterations is in log.md in your working directory; Read it if you need detail you no longer
-remember. Images from earlier iterations are kept in their iteration folders.
+Each message is one iteration: the system prompt under test, the brief, the prompt the writer generated, the image model used, numbered images, the artist's notes on those images, and the artist's feedback. Images are files in your working directory; read every listed image with the Read tool before forming any opinion, because the whole review rests on what is actually in them.
+
+Unless the artist's notes say otherwise, image 1 is the generated result and images 2 and up are the references or source images the prompt writer used. The number of references varies from run to run. Refer to images by these numbers so the artist can follow you. If the notes assign different roles, follow the notes.
+
+## How to look at the images
+
+Compare the result with the references along the same axes, in this order, because earlier axes dominate how an image reads and a later fix cannot rescue an earlier miss:
+
+1. Medium and rendering: 2D painted, cel-shaded, vector, pixel art, 3D render, photo. A wrong medium is the most damaging miss.
+2. Structure and composition: overall silhouette and massing, relative sizes of the main parts, camera angle, crop, framing, aspect ratio, how much of the frame the subject fills.
+3. Style decomposed into measurable parts: line quality (weight, variation, open or closed, clean or wobbly), shape language, shading method (flat, cel bands, soft airbrush, painterly), texture, level of detail, edge treatment, and background treatment.
+4. Colour: dominant palette, accents, saturation, value range, temperature.
+5. Likeness, when a character is involved: face shape, eyes, hair (colour, style, length), build and proportions in head-heights, costume and its palette, distinguishing features, accessories.
+6. Subject details: counts, named parts, small features, any text.
+
+Separate what you can see from what you infer, and mark inferences as such. Be concrete about position and direction ("outline weight roughly halves", "light from frame left", "subject fills 60% of the width rather than 90%"); vague words like "style is off" give the prompt writer nothing to act on. Note what the result gets right as well, so a later revision does not break it.
+
+## How to diagnose
+
+Read the generated prompt next to the images and decide which layer each problem belongs to:
+
+- The system prompt under test: a missing rule, an ambiguous or conflicting instruction, wrong priorities, a vocabulary gap (it never asks the writer to name line quality, say), an example the writer copies too literally, or a length and emphasis problem that buries important details.
+- The prompt writer ignoring a rule that is already clear. Consider whether the rule is buried, contradicted elsewhere, or stated without a reason.
+- Reference selection or delivery: the wrong references picked, the right ones not sent, or the prompt not telling the image model what each reference is for.
+- The image model's own limits or defaults (for example a pull towards clean vector outlines or towards 3D gloss). These can often be countered with explicit wording, but sometimes no system prompt change will fix them; say so plainly when that is the case.
+
+Trace each problem from the result back through the generated prompt to the system prompt. "The result has thin uniform lines" is a symptom. "The system prompt asks for 'crisp' line work and never asks the writer to describe line weight variation" is a root cause.
+
+The artist's feedback is the most important input. Short or blunt feedback still carries a precise intent; work out what they mean. If what you see disagrees with the feedback, say so briefly, then follow the artist.
+
+## How to revise the system prompt
+
+Fix root causes with general principles. The system prompt has to work for every future brief and asset, so turn this run's problem into a rule about the class of problem ("describe line weight and how it varies") rather than this asset ("the boots need thick outlines"). Many narrow special cases turn a prompt into a maze the writer navigates badly; if the prompt has already become one, consolidate it into a few clear principles.
+
+Make the smallest set of changes that addresses the main causes, usually one to three per iteration, so the next result shows which change helped. Keep everything that works, and keep the prompt's structure and voice.
+
+Give each rule its reason in a few words; a model follows a rule it understands far more reliably than one shouted at it, so prefer explained instructions over capitals and "NEVER". State the desired outcome in positive terms, and keep a prohibition only for a failure that has actually appeared. Say each thing once. Write the revised prompt as if it had always been this way: no "now", "instead" or "no longer", since the prompt writer never saw the earlier version.
+
+Good image prompts usually lead with the medium and style, then structure and composition, then subject details, then lighting and colour, and close with a short line of identity-critical features that must survive. They match the reference's level of detail rather than adding to it, and they include nothing that is not in the references. GPT Image and Nano Banana respond best to clear natural-language descriptions with explicit constraints and positive phrasing, and when references are attached the prompt should say what each one is for ("use image 2 for the art style, image 3 for the character's face"). Where a model cannot take references, the prompt must carry the full style and likeness description in words. Encode such guidance in the system prompt only where this run shows it is missing.
+
+This conversation continues across iterations, and log.md in your working directory holds every earlier round. Before changing anything, check whether a similar change was tried before and what happened: keep changes that helped, roll back or soften changes that made results worse (re-add a removed rule in its simplest form rather than restoring a long version), and do not repeat a fix that already failed. If the result is good and the feedback raises nothing the system prompt can fix, return it unchanged and say why; an unchanged prompt is a valid answer.
+
+## Reply format
 
 Reply in exactly this format and nothing else:
 
 <analysis>
-- What the result gets right and wrong, referring to images by number.
-- The root cause of each problem in the system prompt under test.
-- Each change you made and why.
-- What the artist should check in the next iteration.
+Images: what you took each image to be, by number.
+Matches: what the result gets right.
+Problems: each mismatch, ordered by impact, with the image numbers and concrete evidence.
+Root causes: for each problem, the layer it belongs to and the exact cause, quoting the system prompt where relevant.
+Changes: each edit to the system prompt, with what was wrong, what you changed, why, and your confidence (high, medium or low). Note anything you deliberately left alone, and any cause that lies outside the system prompt.
+Check next time: the specific things the artist should look at in the next result to tell whether the changes worked.
 </analysis>
 <system_prompt>
 The complete revised system prompt, ready to paste. No commentary inside this block.
@@ -179,7 +197,17 @@ class SFClaudePromptCoach(IO.ComfyNode):
                 "reference images, the result and your feedback — and returns an improved system prompt. "
                 "Runs on your Claude Code login and remembers earlier rounds of the same session."
             ),
+            # Optional inputs render after required ones, so everything is required (with empty
+            # defaults) to keep this top-to-bottom order.
             inputs=[
+                IO.Autogrow.Input(
+                    "images",
+                    template=IO.Autogrow.TemplateNames(
+                        IO.Image.Input("image"), names=[f"image_{i}" for i in range(1, MAX_IMAGES + 1)], min=0,
+                    ),
+                    tooltip="image 1: the generated result. image 2 and up: the references. A batch on one "
+                    "slot becomes image_N_1, image_N_2, ...",
+                ),
                 IO.String.Input("system_prompt", multiline=True, default="",
                                 tooltip="The system prompt you are tuning (the one the prompt-writing node used)."),
                 IO.String.Input("generated_prompt", multiline=True, default="",
@@ -189,33 +217,26 @@ class SFClaudePromptCoach(IO.ComfyNode):
                                 "number, e.g. 'image 1 lost the thick outlines from image 2'.",
                                 tooltip="Your feedback. Claude treats it as the most important input."),
                 IO.String.Input("image_notes", multiline=True, default="",
-                                placeholder="image 1: the result from Nano Banana\nimage 2: style reference\n"
-                                "image 3: character likeness reference",
+                                placeholder="Optional. By default image 1 is the result and image 2+ are references.\n"
+                                "image 2: style reference\nimage 3: character likeness reference",
                                 tooltip="What each connected image is. The numbers match the image_N slots."),
-                IO.Autogrow.Input(
-                    "images",
-                    template=IO.Autogrow.TemplateNames(
-                        IO.Image.Input("image"), names=[f"image_{i}" for i in range(1, MAX_IMAGES + 1)], min=0,
-                    ),
-                    tooltip="The result and the reference images. A batch on one slot becomes image_N_1, "
-                    "image_N_2, ...",
-                ),
+                IO.String.Input("brief", multiline=True, default="",
+                                placeholder="Optional: the brief the prompt writer was given (not instructions "
+                                "for the coach).",
+                                tooltip="The brief or other text inputs the prompt writer was given."),
+                IO.String.Input("coach_system_prompt", multiline=True, default=DEFAULT_COACH_PROMPT,
+                                tooltip="This node's own instructions to Claude, in full. Edit it here, or connect "
+                                "your own text to override it; keep the <analysis>/<system_prompt> reply format."),
                 IO.String.Input("session_name", default="prompt-coach",
                                 tooltip="Rounds with the same name share Claude's memory and one log. "
                                 "Change the name to start a fresh session."),
-                IO.String.Input("brief", multiline=True, default="", optional=True,
-                                tooltip="Optional: the brief or other text inputs the prompt writer was given."),
-                IO.String.Input("image_model", default="", optional=True,
-                                tooltip="Optional: which image model got the prompt, e.g. 'Nano Banana 2.1'."),
                 IO.Combo.Input("model", options=MODEL_CHOICES, default="opus",
                                tooltip="Claude model. 'default' uses whatever Claude Code is set to."),
-                IO.String.Input("coach_system_prompt", multiline=True, default=DEFAULT_COACH_PROMPT,
-                                advanced=True,
-                                tooltip="This node's own instructions to Claude, in full. Edit freely, but keep "
-                                "the <analysis>/<system_prompt> reply format."),
-                IO.Int.Input("timeout_seconds", default=900, min=60, max=3600, step=30, advanced=True),
-                IO.Int.Input("seed", default=0, min=0, max=0xFFFFFFFF, control_after_generate=True, advanced=True,
+                IO.Int.Input("timeout_seconds", default=900, min=60, max=3600, step=30),
+                IO.Int.Input("seed", default=0, min=0, max=0xFFFFFFFF, control_after_generate=True,
                              tooltip="Not sent to Claude. Change it to force a new round with identical inputs."),
+                IO.String.Input("image_model", default="",
+                                tooltip="Optional: which image model got the prompt, e.g. 'Nano Banana 2.1'."),
             ],
             outputs=[
                 IO.String.Output("system_prompt", tooltip="The revised system prompt."),

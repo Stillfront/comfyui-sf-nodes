@@ -233,10 +233,12 @@ round's inputs, analysis and revised prompt), `system_prompt_v1.md`, `v2`… and
 The log never fades, unlike a long session, and Claude reads it when it needs older detail. To keep
 talking to it outside ComfyUI, run `claude --resume <session_id>` from that folder.
 
-**Nothing hidden.** The node's own instructions are the **coach_system_prompt** input (under
-*Show advanced inputs*), sent as Claude's whole system prompt; everything else Claude sees is the
-message built from your inputs, which is also written to the log. Edit the instructions freely, but
-keep the `<analysis>` / `<system_prompt>` reply format the node reads.
+**Nothing hidden.** The node's own instructions are the **coach_system_prompt** text box, sent as
+Claude's whole system prompt; everything else Claude sees is the message built from your inputs,
+which is also written to the log. Edit the text in place, or connect your own text node to that
+input to override it, but keep the `<analysis>` / `<system_prompt>` reply format the node reads.
+Unless **image_notes** say otherwise, the built-in instructions treat image 1 as the generated
+result and images 2 and up as the references.
 
 Runs on your Claude Code login like **SF Claude Code**; `model` defaults to Opus.
 
