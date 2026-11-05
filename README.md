@@ -310,7 +310,7 @@ named without it for new work.
 
 | Node | Description |
 |---|---|
-| **SF WaveSpeed Seedance 2.5** | ByteDance Seedance 2.5 with native audio: text-to-video, or image-to-video from a start frame and optional end frame. 480p–4k, 4–30 s, billed per second. Outputs a `VIDEO` plus its URL. |
+| **SF WaveSpeed Seedance 2.5** | ByteDance Seedance 2.5 with native audio: text-to-video, image-to-video from a start frame and optional end frame, or reference-to-video from up to 30 reference images. In the prompt, *"the character from image 1 enters the bar"* means the image in slot `image_1` — the node turns those mentions into Seedance's `@Image N` tags. 480p–4k, 4–30 s, billed per second. Outputs a `VIDEO` plus its URL. |
 | **SF WaveSpeed VEO 3.1 Text to Video** | Google VEO 3.1 text-to-video generation. |
 | **SF WaveSpeed VEO 3.1 Image to Video** | Google VEO 3.1 image-to-video animation. |
 | **SF WaveSpeed VEO 3.1 Reference to Video** | VEO 3.1 video generation using a reference image. |
