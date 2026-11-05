@@ -6,6 +6,13 @@
  * It augments the native dialog rather than replacing it: ComfyUI still does
  * the actual saving, so tab tracking and overwrite confirmation are unchanged.
  * Picking a folder only rewrites the path in the dialog's own input.
+ *
+ * ComfyUI resolves the typed name against the open workflow's own folder
+ * (path = workflow.directory + "/" + input). The picker works in paths from
+ * the top-level workflows folder, so while the dialog is open the active
+ * workflow's directory reads as that top level, and the input starts out
+ * holding the workflow's current folder so an unchanged save lands where it
+ * always did.
  */
 
 import { app } from "../../../scripts/app.js";
@@ -18,6 +25,21 @@ const ROOT = "workflows";
 // True only while a Save command is running, so the same prompt dialog used
 // for renaming or exporting is left alone.
 let savePending = false;
+// The active workflow's folder relative to ROOT ("" at the top level), captured
+// when the Save command starts.
+let currentFolder = "";
+
+function activeWorkflow() {
+    try {
+        return app.extensionManager?.workflow?.activeWorkflow ?? null;
+    } catch {
+        return null;
+    }
+}
+
+function relativeFolder(directory) {
+    return (directory || ROOT).replace(new RegExp(`^${ROOT}/?`), "");
+}
 
 function enabled() {
     try {
@@ -174,6 +196,13 @@ async function inject(dialog) {
     const input = dialog.querySelector("input");
     if (!input) return;
 
+    // The dialog offers just the file name; show it in its real folder, since the
+    // name is now resolved from the top level.
+    if (currentFolder && !input.value.includes("/")) {
+        input.value = `${currentFolder}/${input.value}`;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+
     let picker;
     try {
         picker = buildPicker(input, await fetchFolders());
@@ -203,11 +232,33 @@ app.registerExtension({
             if (!command) continue;
             const original = command.function;
             command.function = async function () {
+                const workflow = enabled() ? activeWorkflow() : null;
+                let overridden = false;
+                let ownDirectory;
+                if (workflow) {
+                    currentFolder = relativeFolder(workflow.directory);
+                    // Plain Save on a saved workflow never prompts, so it is left untouched.
+                    if (currentFolder && id === "Comfy.SaveWorkflowAs") {
+                        // Override directory on this instance only, for the length of the save. Depending
+                        // on the frontend version it is an own value or an inherited getter, so the
+                        // original own descriptor (if any) is kept and put back afterwards.
+                        ownDirectory = Object.getOwnPropertyDescriptor(workflow, "directory");
+                        Object.defineProperty(workflow, "directory", {
+                            value: ROOT, configurable: true, writable: true, enumerable: true,
+                        });
+                        overridden = true;
+                    }
+                }
                 savePending = true;
                 try {
                     return await original.apply(this, arguments);
                 } finally {
                     savePending = false;
+                    currentFolder = "";
+                    if (overridden) {
+                        if (ownDirectory) Object.defineProperty(workflow, "directory", ownDirectory);
+                        else delete workflow.directory;
+                    }
                 }
             };
         }
