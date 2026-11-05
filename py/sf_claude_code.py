@@ -51,8 +51,13 @@ def save_images(image_inputs, directory):
     return names
 
 
+# Sent when the prompt box is empty: the system prompt and images carry the request.
+EMPTY_PROMPT_REQUEST = "Carry out the task described in your system prompt."
+
+
 def build_prompt(prompt, image_names):
     """Prefixes the request with instructions to read the images off disk."""
+    prompt = prompt.strip() or EMPTY_PROMPT_REQUEST
     if not image_names:
         return prompt
 
@@ -86,7 +91,10 @@ class SFClaudeCode:
                     {
                         "multiline": True,
                         "default": "",
-                        "tooltip": "What you want Claude to do.",
+                        "tooltip": (
+                            "What you want Claude to do. Optional when the system prompt already "
+                            "describes the task."
+                        ),
                     },
                 ),
                 "system_prompt": (
@@ -146,12 +154,14 @@ using your existing Claude login — no API key needed.
 Requires Claude Code to be installed and signed in on whichever computer runs
 ComfyUI. Connect an image and a further image slot appears automatically.
 
+**prompt** can stay empty when **system_prompt** already describes the task.
+
 Change **seed** to force a fresh reply; otherwise ComfyUI reuses the cached one.
 """
 
     def run(self, prompt, system_prompt, model, timeout_seconds, seed, **kwargs):
-        if not prompt.strip():
-            raise ValueError("prompt is empty — give Claude something to do.")
+        if not prompt.strip() and not system_prompt.strip():
+            raise ValueError("prompt and system_prompt are both empty — give Claude something to do.")
 
         binary = find_claude_binary()
         if not binary:
