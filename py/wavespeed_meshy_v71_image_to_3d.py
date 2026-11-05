@@ -112,9 +112,9 @@ class SFWaveSpeedMeshyV71ImageTo3D(IO.ComfyNode):
             raise ValueError(f"texture_prompt is {len(texture_prompt)} characters; Meshy allows 600.")
 
         api = WaveSpeedClient(api_key=client["api_key"])
-        uploads = [call(client, api.upload_file, tensor2images(image)[0])]
+        uploads = [call(client, api.upload_file, tensor2images(image)[0], retry=True)]
         if texture_image is not None and should_texture:
-            uploads.append(call(client, api.upload_file, tensor2images(texture_image)[0]))
+            uploads.append(call(client, api.upload_file, tensor2images(texture_image)[0], retry=True))
         urls = await asyncio.gather(*uploads)
 
         payload = build_payload(

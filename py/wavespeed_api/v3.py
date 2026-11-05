@@ -42,10 +42,39 @@ def check_interrupted():
     mm.throw_exception_if_processing_interrupted()
 
 
-async def call(client, fn, *args):
+# Network failures worth retrying: a dropped or reset connection, or a request
+# that timed out. Only used for requests that are safe to repeat (polling,
+# uploads, downloads), never for submitting a task, which WaveSpeed bills.
+TRANSIENT_ERRORS = (requests.exceptions.ConnectionError, requests.exceptions.Timeout,
+                    requests.exceptions.ChunkedEncodingError)
+RETRY_DELAYS = (2, 4, 8, 15, 30)
+
+
+async def with_retries(fn, *args, label="WaveSpeed"):
+    """Run a blocking, repeatable request in a worker thread, retrying network
+    hiccups with growing pauses before giving up."""
+    for attempt, delay in enumerate(RETRY_DELAYS + (None,), start=1):
+        try:
+            return await asyncio.to_thread(fn, *args)
+        except TRANSIENT_ERRORS as e:
+            if delay is None:
+                raise RuntimeError(
+                    f"{label}: lost the connection to WaveSpeed {attempt} times in a row ({e}). "
+                    f"Check your internet connection; any task already submitted may still finish "
+                    f"on WaveSpeed's side."
+                ) from e
+            print(f"[SF {label}] Network error ({type(e).__name__}); retrying in {delay}s "
+                  f"({attempt}/{len(RETRY_DELAYS)}).")
+            check_interrupted()
+            await asyncio.sleep(delay)
+
+
+async def call(client, fn, *args, retry=False):
     """Run a blocking API call in a worker thread, turning a 401 into an error
-    that says which key was used."""
+    that says which key was used. `retry` is only for calls that are safe to repeat."""
     try:
+        if retry:
+            return await with_retries(fn, *args)
         return await asyncio.to_thread(fn, *args)
     except Exception as e:
         if "401" in str(e) or "Unauthorized" in str(e):
@@ -64,7 +93,7 @@ async def wait_for_result(api, task_id, timeout_seconds, label, interval=2):
     started = loop.time()
     while True:
         check_interrupted()
-        result = await asyncio.to_thread(api.get, RESULT_PATH.format(id=task_id))
+        result = await with_retries(api.get, RESULT_PATH.format(id=task_id), label=label)
         status = result.get("status")
         if status == "completed":
             return result
@@ -112,7 +141,8 @@ def downscale(image, max_pixels=MAX_UPLOAD_PIXELS):
 
 async def upload_images(api, client, images):
     """Upload references concurrently, downscaled first. Returns their URLs in order."""
-    return list(await asyncio.gather(*(call(client, api.upload_file, downscale(img)) for img in images)))
+    return list(await asyncio.gather(*(call(client, api.upload_file, downscale(img), retry=True)
+                                       for img in images)))
 
 
 async def fetch_images(urls, timeout=120):
@@ -123,7 +153,7 @@ async def fetch_images(urls, timeout=120):
         response.raise_for_status()
         return Image.open(io.BytesIO(response.content))
 
-    return list(await asyncio.gather(*(asyncio.to_thread(get, url) for url in urls)))
+    return list(await asyncio.gather(*(with_retries(get, url, label="download") for url in urls)))
 
 
 def _has_alpha(image):
@@ -199,7 +229,7 @@ async def save_3d_model(url, name, default_ext=".glb"):
         with open(path, "wb") as f:
             f.write(response.content)
 
-    await asyncio.to_thread(download)
+    await with_retries(download, label="download")
 
     glb = fbx = None
     if File3D is not None:
@@ -219,7 +249,7 @@ async def generate_3d_model(api, client, image, endpoint, build_payload, quad, f
     the output matching the returned file is populated, as on ComfyUI's own
     Tripo nodes.
     """
-    image_url = await call(client, api.upload_file, tensor2images(image)[0])
+    image_url = await call(client, api.upload_file, tensor2images(image)[0], retry=True)
     started = time.time()
     task_id, result = await submit_and_wait(api, client, endpoint, build_payload(image_url), timeout_seconds, label)
 
@@ -241,4 +271,4 @@ async def fetch_video(url, timeout=600):
         response.raise_for_status()
         return io.BytesIO(response.content)
 
-    return InputImpl.VideoFromFile(await asyncio.to_thread(get))
+    return InputImpl.VideoFromFile(await with_retries(get, label="download"))
